@@ -11,6 +11,15 @@
 - Packaged the Windows desktop shell as P&B Management Sys.
 - Android build and target-device installation remain pending.
 
+## Unreleased — v0.3 daily organizer
+
+- Added 4-tab mobile navigation: Today, Inbox, Tasks, Spaces.
+- Added Today view featuring date display, local offline status badge, user-curated Top 3 Focus Priorities, recent capture continue card, and pending tasks.
+- Added Task management engine with Room entities, DAOs, task creation dialog, completion toggling, and Space assignment.
+- Added default seed Spaces: Shop, Personal, App Development with isolated task filtering.
+- Added instant offline search across task titles, task descriptions, and inbox notes.
+- Bumped Room schema to version 2 with destructive migration fallback for dev installations.
+
 ## v0.2 — Local Capture Core
 
 - Added Room-backed local Inbox storage for text and voice captures.

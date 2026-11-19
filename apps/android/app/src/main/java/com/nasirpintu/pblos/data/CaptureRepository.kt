@@ -35,6 +35,14 @@ class CaptureRepository private constructor(private val context: Context, privat
     private var startedAtElapsedMs: Long = 0L
 
     fun observeInbox(): Flow<List<InboxWithAttachments>> = dao.observeInbox()
+    fun observeLatestCapture(): Flow<InboxItemEntity?> = dao.observeLatestCapture()
+    fun observeSpaces(): Flow<List<SpaceEntity>> = dao.observeSpaces()
+    fun observeTasks(): Flow<List<TaskWithSpace>> = dao.observeTasks()
+    fun observeFocusTasks(): Flow<List<TaskWithSpace>> = dao.observeFocusTasks()
+    fun observePendingTasks(): Flow<List<TaskWithSpace>> = dao.observePendingTasks()
+    fun observeTasksBySpace(spaceId: String): Flow<List<TaskWithSpace>> = dao.observeTasksBySpace(spaceId)
+    fun searchTasks(query: String): Flow<List<TaskWithSpace>> = dao.searchTasks(query)
+    fun searchInbox(query: String): Flow<List<InboxWithAttachments>> = dao.searchInbox(query)
 
     suspend fun initialize() = withContext(Dispatchers.IO) {
         val now = isoUtcNow()
@@ -49,6 +57,47 @@ class CaptureRepository private constructor(private val context: Context, privat
             ),
         )
         dao.updateDeviceLastSeen(deviceId, now)
+
+        // Seed default spaces if not present
+        dao.insertSpaceIfAbsent(
+            SpaceEntity(
+                id = "space_shop",
+                name = "Shop",
+                slug = "shop",
+                description = "Shop orders, inventory, daily records",
+                colorHex = "#2F7569",
+                sortOrder = 1,
+                isArchived = 0,
+                createdAt = now,
+                updatedAt = now,
+            )
+        )
+        dao.insertSpaceIfAbsent(
+            SpaceEntity(
+                id = "space_personal",
+                name = "Personal",
+                slug = "personal",
+                description = "Personal life, family, commitments",
+                colorHex = "#2858A5",
+                sortOrder = 2,
+                isArchived = 0,
+                createdAt = now,
+                updatedAt = now,
+            )
+        )
+        dao.insertSpaceIfAbsent(
+            SpaceEntity(
+                id = "space_app_dev",
+                name = "App Development",
+                slug = "app-development",
+                description = "P&B MGT Sys, learning, features",
+                colorHex = "#7B1FA2",
+                sortOrder = 3,
+                isArchived = 0,
+                createdAt = now,
+                updatedAt = now,
+            )
+        )
 
         // Preserve each pre-created recording file and attachment row after process death.
         dao.findInterruptedVoiceCaptures().forEach { item ->
@@ -66,6 +115,60 @@ class CaptureRepository private constructor(private val context: Context, privat
                 if (exists && size > 0L) "Recording was interrupted; the partial audio file has been kept." else "Recording was interrupted before a playable audio file was saved.",
                 now,
             )
+        }
+    }
+
+    suspend fun createTask(
+        title: String,
+        description: String? = null,
+        spaceId: String? = null,
+        priority: String = "normal",
+        dueAt: String? = null,
+        isFocusToday: Boolean = false,
+        sourceInboxItemId: String? = null,
+    ): String = withContext(Dispatchers.IO) {
+        val cleanTitle = title.trim()
+        require(cleanTitle.isNotEmpty()) { "Please enter a task title." }
+        val now = isoUtcNow()
+        val id = UUID.randomUUID().toString()
+        val task = TaskEntity(
+            id = id,
+            spaceId = spaceId?.takeIf { it.isNotBlank() },
+            projectId = null,
+            sourceInboxItemId = sourceInboxItemId,
+            title = cleanTitle,
+            description = description?.trim()?.takeIf { it.isNotBlank() },
+            status = "approved",
+            priority = priority,
+            dueAt = dueAt,
+            dateExpression = null,
+            estimatedMinutes = null,
+            isFocusToday = if (isFocusToday) 1 else 0,
+            completedAt = null,
+            createdAt = now,
+            updatedAt = now,
+        )
+        dao.insertTask(task)
+        id
+    }
+
+    suspend fun toggleTaskCompletion(id: String, isCurrentlyCompleted: Boolean) = withContext(Dispatchers.IO) {
+        val now = isoUtcNow()
+        val newStatus = if (isCurrentlyCompleted) "approved" else "completed"
+        val completedAt = if (isCurrentlyCompleted) null else now
+        dao.setTaskCompletion(id, newStatus, completedAt, now)
+    }
+
+    suspend fun toggleTaskFocus(id: String, isCurrentlyFocused: Boolean): Boolean = withContext(Dispatchers.IO) {
+        val now = isoUtcNow()
+        if (!isCurrentlyFocused) {
+            val count = dao.getFocusTaskCount()
+            if (count >= 3) return@withContext false
+            dao.setTaskFocus(id, 1, now)
+            true
+        } else {
+            dao.setTaskFocus(id, 0, now)
+            true
         }
     }
 
@@ -230,7 +333,9 @@ class CaptureRepository private constructor(private val context: Context, privat
         fun get(context: Context): CaptureRepository = instance ?: synchronized(this) {
             instance ?: CaptureRepository(
                 context.applicationContext,
-                Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, DATABASE_NAME).build(),
+                Room.databaseBuilder(context.applicationContext, LocalDatabase::class.java, DATABASE_NAME)
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build(),
             ).also { instance = it }
         }
     }
