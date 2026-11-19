@@ -1,97 +1,393 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import './styles.css';
 
-const socials = [
-  ['GitHub', '@nasiropintu', 'https://github.com/nasiropintu'],
-  ['X (Twitter)', '@nasiropintu', 'https://x.com/nasiropintu'],
-  ['Instagram', '@the_np2', 'https://www.instagram.com/the_np2/'],
-  ['Facebook', 'mohammadnasiruddin.pintu', 'https://www.facebook.com/mohammadnasiruddin.pintu/'],
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const collaborators = [
-  ['Gemini', 'Google DeepMind', 'Architecture & Agentic Workflows'],
-  ['Manus', 'Manus AI', 'Autonomous Planning & Synthesis'],
-  ['ChatGPT', 'OpenAI', 'Logic Optimization & Reasoning'],
-  ['DeepSeek', 'DeepSeek', 'Algorithmic Engineering & Core Logic'],
-  ['Claude', 'Anthropic', 'Systems Architecture & Clean Design'],
-  ['Vibe by Mistral', 'Mistral AI', 'Fast Generation & Execution'],
-];
-
-const openSource = [
-  ['React 19', 'Meta', 'Reusable interface components and application state', 'https://react.dev/'],
-  ['React DOM', 'Meta', 'Rendering React interfaces in the desktop window', 'https://react.dev/'],
-  ['Electron', 'OpenJS Foundation', 'Desktop runtime powered by Chromium and Node.js', 'https://www.electronjs.org/'],
-  ['Vite', 'Vite Team', 'Frontend development server and production bundler', 'https://vite.dev/'],
-  ['TypeScript', 'Microsoft', 'Typed application code and shared domain contracts', 'https://www.typescriptlang.org/'],
-  ['Jetpack Compose & Material 3', 'AndroidX / Google', 'Native Android interface toolkit and design components', 'https://developer.android.com/jetpack/compose'],
-  ['Room', 'AndroidX', 'Structured local database with SQLite-backed persistence', 'https://developer.android.com/training/data-storage/room'],
-  ['Lifecycle Runtime Compose', 'AndroidX', 'Lifecycle-aware collection of local capture updates', 'https://developer.android.com/jetpack/androidx/releases/lifecycle'],
-  ['Kotlin', 'JetBrains', 'Language used for the Android application', 'https://kotlinlang.org/'],
-  ['AndroidX Activity Compose', 'Android Jetpack', 'Compose integration with the Android activity lifecycle', 'https://developer.android.com/jetpack/androidx'],
-  ['Gradle', 'Gradle Inc.', 'Build automation and dependency management', 'https://gradle.org/'],
-  ['Android Gradle Plugin', 'Google', 'Android application build and packaging support', 'https://developer.android.com/build'],
-  ['electron-builder', 'electron-userland community', 'Windows desktop packaging and installer generation', 'https://www.electron.build/'],
-];
-
-function AboutDialog({ close }: { close: () => void }) {
-  const [photoError, setPhotoError] = useState(false);
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [close]);
-
-  return <div className="backdrop" onMouseDown={close}>
-    <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="about-title" onMouseDown={event => event.stopPropagation()}>
-      <button className="close" aria-label="Close about dialog" onClick={close}>×</button>
-      <header className="creator">
-        {photoError ? <div className="avatar-fallback">NP</div> : <img src="./nasirpintu.jpg" alt="NasirPintu" onError={() => setPhotoError(true)} />}
-        <div><span className="eyebrow coral">♡ Crafted with Love</span><h2 id="about-title">NasirPintu</h2>
-          <p className="mono">Mohammad Nasiruddin Pintu · Creator &amp; Architect</p>
-          <p>Dedicated to building free, private-by-design, serverless tools that empower people without paywalls, subscriptions, or data tracking.</p>
-        </div>
-      </header>
-
-      <section className="about-section">
-        <h3>Connect with NasirPintu</h3>
-        <div className="social-grid">{socials.map(([name, handle, url]) => <a key={name} href={url} target="_blank" rel="noopener noreferrer">
-          <span className="social-icon">{name === 'GitHub' ? '◉' : name === 'Instagram' ? '◎' : name === 'Facebook' ? 'f' : '𝕏'}</span>
-          <span>{name}<small>{handle}</small></span><span className="external">↗</span>
-        </a>)}</div>
-      </section>
-
-      <section className="about-section">
-        <div className="section-heading"><h3>♧ &nbsp;AI Agent Collaboration Credits</h3><span className="mono muted">Human-Directed · Agent-Assisted</span></div>
-        <p>Every feature in this suite is conceived and architected by <strong>NasirPintu</strong>, engineered in active synergy with frontier artificial intelligence models and autonomous coding agents.</p>
-        <div className="credits-grid">{collaborators.map(([name, provider, role]) => <article className="credit" key={name}><i /><div><strong>{name}</strong><small>{provider}</small><small>{role}</small></div></article>)}</div>
-      </section>
-
-      <section className="about-section">
-        <h3>‹/› &nbsp;Open-Source Community Credits</h3>
-        <p>P&amp;B MGT Sys runs 100% locally on your machine with zero server costs, built on the shoulders of these open-source giants:</p>
-        <div className="oss-grid">{openSource.map(([name, author, description, url]) => <a className="oss-card" href={url} target="_blank" rel="noopener noreferrer" key={name}>
-          <div className="oss-head"><strong>{name}</strong><span>by {author} ↗</span></div><p>{description}</p>
-        </a>)}</div>
-      </section>
-
-      <footer className="privacy-footer"><span className="shield">♧</span><span><strong>Privacy Guarantee:</strong> All document processing stays strictly in your browser. Zero uploads. Zero telemetry.</span></footer>
-    </section>
-  </div>;
+interface WorkerStatus {
+  whisperAvailable: boolean;
+  whisperModel: string | null;
+  ollamaAvailable: boolean;
+  ollamaModel: string | null;
+  queueLength: number;
+  processedToday: number;
+  uptime: number;
+  processingJob: boolean;
+  serverUrl: string;
+  port: number;
 }
 
+interface ExtractionItem {
+  kind: string;
+  title: string;
+  body?: string;
+  spaceHint?: string;
+  dateExpression?: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+interface ExtractionResult {
+  items: ExtractionItem[];
+  ollamaModel: string;
+  promptVersion: string;
+  processingMs: number;
+}
+
+interface Job {
+  jobId: string;
+  inboxItemId: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  attemptCount: number;
+  requestedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  transcript?: string;
+  extraction?: ExtractionResult;
+  errorCode?: string;
+  errorMessage?: string;
+  modelVersion?: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ipc = (window as any).pblosWorker as {
+  getStatus: () => Promise<WorkerStatus>;
+  getJobs:   () => Promise<{ jobs: Job[] }>;
+  retryJob:  (id: string) => Promise<Job>;
+  cancelJob: (id: string) => Promise<Job>;
+  refreshAi: () => Promise<WorkerStatus>;
+  onStatus:  (cb: (d: WorkerStatus) => void) => void;
+} | undefined;
+
+function fmt(isoStr?: string) {
+  if (!isoStr) return '—';
+  return new Date(isoStr).toLocaleTimeString();
+}
+function elapsed(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+}
+function uptime(secs: number) {
+  const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+const STATUS_COLOR: Record<Job['status'], string> = {
+  queued:    '#7b8fa1',
+  running:   '#2858a5',
+  completed: '#1a7a4a',
+  failed:    '#c0392b',
+  cancelled: '#a0a0a0',
+};
+const STATUS_ICON: Record<Job['status'], string> = {
+  queued: '◷', running: '⟳', completed: '✓', failed: '✕', cancelled: '—',
+};
+const CONF_COLOR: Record<string, string> = { high: '#1a7a4a', medium: '#c07d00', low: '#a0a0a0' };
+const KIND_ICON: Record<string, string> = { task: '☑', note: '📝', idea: '💡', space_suggestion: '📁' };
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function StatusChip({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span className={`chip ${ok ? 'chip-green' : 'chip-red'}`}>
+      <i className="dot" /> {label}
+    </span>
+  );
+}
+
+function JobCard({ job, onRetry, onCancel, expanded, onToggle }: {
+  job: Job;
+  onRetry: (id: string) => void;
+  onCancel: (id: string) => void;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className={`job-card job-${job.status}`} onClick={onToggle}>
+      <div className="job-header">
+        <span className="job-status-icon" style={{ color: STATUS_COLOR[job.status] }}>
+          {STATUS_ICON[job.status]}
+        </span>
+        <span className="job-id mono">{job.jobId.slice(0, 8)}…</span>
+        <span className="job-inbox-id mono muted">{job.inboxItemId.slice(0, 8)}</span>
+        <span className={`job-badge badge-${job.status}`}>{job.status}</span>
+        <span className="job-time muted">{fmt(job.requestedAt)}</span>
+        {job.status === 'failed' && (
+          <button className="btn-sm btn-retry" onClick={e => { e.stopPropagation(); onRetry(job.jobId); }}>
+            Retry
+          </button>
+        )}
+        {job.status === 'queued' && (
+          <button className="btn-sm btn-cancel" onClick={e => { e.stopPropagation(); onCancel(job.jobId); }}>
+            Cancel
+          </button>
+        )}
+        <span className="expand-arrow">{expanded ? '▲' : '▼'}</span>
+      </div>
+
+      {expanded && (
+        <div className="job-detail" onClick={e => e.stopPropagation()}>
+          {job.modelVersion && <p className="mono muted small">Model: {job.modelVersion}</p>}
+          {job.attemptCount > 0 && <p className="mono muted small">Attempts: {job.attemptCount}</p>}
+
+          {job.errorMessage && (
+            <div className="error-box">
+              <strong>{job.errorCode ?? 'Error'}:</strong> {job.errorMessage}
+            </div>
+          )}
+
+          {job.transcript && (
+            <div className="detail-section">
+              <h4>📝 Transcript</h4>
+              <p className="transcript-text">{job.transcript}</p>
+            </div>
+          )}
+
+          {job.extraction && job.extraction.items.length > 0 && (
+            <div className="detail-section">
+              <h4>✦ Extracted suggestions <span className="muted small">({job.extraction.items.length})</span></h4>
+              <p className="mono muted small">
+                {job.extraction.ollamaModel} · {job.extraction.promptVersion} · {elapsed(job.extraction.processingMs)}
+              </p>
+              <div className="suggestion-list">
+                {job.extraction.items.map((item, i) => (
+                  <div key={i} className="suggestion-item">
+                    <div className="suggestion-header">
+                      <span className="kind-icon">{KIND_ICON[item.kind] ?? '◈'}</span>
+                      <strong>{item.title}</strong>
+                      <span className="conf-badge" style={{ color: CONF_COLOR[item.confidence] }}>
+                        {item.confidence}
+                      </span>
+                    </div>
+                    {item.body && <p className="suggestion-body">{item.body}</p>}
+                    <div className="suggestion-meta">
+                      {item.spaceHint && <span className="meta-tag">📁 {item.spaceHint}</span>}
+                      {item.dateExpression && <span className="meta-tag">🗓 {item.dateExpression}</span>}
+                      <span className="meta-tag kind-tag">{item.kind}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {job.extraction && job.extraction.items.length === 0 && job.transcript && (
+            <div className="detail-section muted small">
+              <em>No extractable items found in this capture.</em>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SetupGuide({ status }: { status: WorkerStatus | null }) {
+  if (!status) return null;
+  const needsWhisper = !status.whisperAvailable;
+  const needsOllama = !status.ollamaAvailable;
+  if (!needsWhisper && !needsOllama) return null;
+
+  return (
+    <div className="setup-guide">
+      <h3>⚙️ Setup Required</h3>
+      {needsWhisper && (
+        <div className="setup-step">
+          <h4>1. Install whisper.cpp <span className="badge-required">Required for transcription</span></h4>
+          <p>Download and compile <a href="https://github.com/ggml-org/whisper.cpp" target="_blank" rel="noopener">whisper.cpp</a>, then place the binary at:</p>
+          <code className="mono">%USERPROFILE%\whisper.cpp\build\bin\whisper-cli.exe</code>
+          <p>Download a model (recommended: <strong>ggml-small.bin</strong>) to:</p>
+          <code className="mono">%USERPROFILE%\whisper.cpp\models\ggml-small.bin</code>
+          <p className="muted small">Bengali + English accuracy: Small model recommended. Base is faster but less accurate for Bengali.</p>
+        </div>
+      )}
+      {needsOllama && (
+        <div className="setup-step">
+          <h4>2. Install Ollama <span className="badge-optional">Optional — enables extraction</span></h4>
+          <p>Download <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> and run it, then pull a model:</p>
+          <code className="mono">ollama pull gemma3:1b</code>
+          <p className="muted small">Recommended models (fastest first): gemma3:1b, qwen2.5:0.5b, qwen2.5:1.5b, llama3.2:1b</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+
 export default function App() {
-  const [aboutOpen, setAboutOpen] = useState(false);
-  return <div className="app-shell">
-    <aside className="sidebar"><div className="brand-mark">P&amp;B</div><div className="brand-name">P&amp;B MGT Sys<small>PRIVATE LIFE &amp; WORK ORGANIZER</small></div>
-      <nav aria-label="Main navigation"><button className="selected">Overview</button><button disabled>Processing queue</button><button disabled>Settings</button></nav>
-      <button className="brand-credit" onClick={() => setAboutOpen(true)}>Crafted with ❤️ by NasirPintu</button>
-    </aside>
-    <main><div className="topline"><span>P&amp;B MGT SYS</span><span className="status"><i /> Foundation preview</span></div>
-      <section className="welcome"><span className="eyebrow">OPTIONAL · LOCAL · PRIVATE</span><h1>Your life and work,<br />in one calm place.</h1>
-        <p>P&amp;B MGT Sys is your private life &amp; work organizer. Say it. Save it. Find it. Act on it.</p>
-        <div className="notice"><span>✳</span><p><strong>Foundation preview</strong><br />Local capture, processing and synchronization will arrive in later milestones.</p></div></section>
-      <section className="features"><article><span>01</span><h2>Private by design</h2><p>Designed for local processing with no required cloud account or paid AI service.</p></article><article><span>02</span><h2>Work from one place</h2><p>Keep personal and business information organized in one workspace.</p></article><article><span>03</span><h2>Stay in control</h2><p>Future AI results will be suggestions for you to review and approve.</p></article></section>
-      <footer className="app-footer">P&amp;B MGT Sys <span>v0.1 foundation</span></footer>
-    </main>
-    {aboutOpen && <AboutDialog close={() => setAboutOpen(false)} />}
-  </div>;
+  const [status, setStatus] = useState<WorkerStatus | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [expandedJob, setExpandedJob] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState<'queue' | 'setup' | 'about'>('queue');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const noIpc = !ipc;
+
+  const loadStatus = useCallback(async () => {
+    if (!ipc) return;
+    try {
+      const s = await ipc.getStatus();
+      setStatus(s);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  const loadJobs = useCallback(async () => {
+    if (!ipc) return;
+    try {
+      const { jobs: list } = await ipc.getJobs();
+      setJobs(list);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  useEffect(() => {
+    if (!ipc) return;
+    ipc.onStatus((data) => { setStatus(data); loadJobs(); });
+    loadStatus();
+    loadJobs();
+    pollRef.current = setInterval(() => { loadStatus(); loadJobs(); }, 5000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [loadStatus, loadJobs]);
+
+  const handleRetry = async (jobId: string) => {
+    await ipc?.retryJob(jobId);
+    await loadJobs();
+  };
+  const handleCancel = async (jobId: string) => {
+    await ipc?.cancelJob(jobId);
+    await loadJobs();
+  };
+  const handleRefreshAi = async () => {
+    setRefreshing(true);
+    await ipc?.refreshAi();
+    await loadStatus();
+    setRefreshing(false);
+  };
+
+  const queued   = jobs.filter(j => j.status === 'queued').length;
+  const running  = jobs.filter(j => j.status === 'running').length;
+  const done     = jobs.filter(j => j.status === 'completed').length;
+  const failed   = jobs.filter(j => j.status === 'failed').length;
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-mark">P&B</div>
+        <div className="brand-name">P&B MGT Sys<small>AI WORKER</small></div>
+
+        <nav aria-label="Main navigation">
+          <button className={tab === 'queue' ? 'selected' : ''} onClick={() => setTab('queue')}>
+            ⟳ Processing Queue
+          </button>
+          <button className={tab === 'setup' ? 'selected' : ''} onClick={() => setTab('setup')}>
+            ⚙️ Setup
+          </button>
+          <button className={tab === 'about' ? 'selected' : ''} onClick={() => setTab('about')}>
+            ♧ About
+          </button>
+        </nav>
+
+        {status && (
+          <div className="sidebar-status">
+            <StatusChip ok={status.whisperAvailable} label={status.whisperAvailable ? `Whisper (${status.whisperModel})` : 'Whisper not found'} />
+            <StatusChip ok={status.ollamaAvailable} label={status.ollamaAvailable ? `Ollama (${status.ollamaModel})` : 'Ollama not found'} />
+            <StatusChip ok={true} label={`Server :${status.port}`} />
+          </div>
+        )}
+
+        <button className="btn-refresh" onClick={handleRefreshAi} disabled={refreshing}>
+          {refreshing ? 'Checking…' : '↻ Check AI Tools'}
+        </button>
+      </aside>
+
+      <main>
+        <div className="topline">
+          <span>P&B MGT SYS WORKER</span>
+          <span className="status">
+            <i className={status?.processingJob ? 'dot-pulse' : 'dot-idle'} />
+            {status ? (status.processingJob ? 'Processing…' : `v1.1 · up ${uptime(status.uptime)}`) : 'Starting…'}
+          </span>
+        </div>
+
+        {noIpc && (
+          <div className="notice-banner">
+            ⚠️ Running in browser preview. Electron IPC is not available. Launch via <code>npm run desktop:dev</code>.
+          </div>
+        )}
+
+        {tab === 'queue' && (
+          <section className="queue-section">
+            <div className="queue-stats">
+              <div className="stat"><span className="stat-num">{queued}</span><span className="stat-label">Queued</span></div>
+              <div className="stat running"><span className="stat-num">{running}</span><span className="stat-label">Running</span></div>
+              <div className="stat done"><span className="stat-num">{done}</span><span className="stat-label">Done</span></div>
+              <div className="stat failed"><span className="stat-num">{failed}</span><span className="stat-label">Failed</span></div>
+              <div className="stat"><span className="stat-num">{status?.processedToday ?? 0}</span><span className="stat-label">Today</span></div>
+            </div>
+
+            {status && (
+              <div className="server-url-bar">
+                <span className="mono small">Android → </span>
+                <code className="mono server-url">{status.serverUrl}/api/jobs</code>
+                <span className="muted small"> (POST audio here)</span>
+              </div>
+            )}
+
+            {jobs.length === 0 ? (
+              <div className="empty-state">
+                <p>No jobs yet.</p>
+                <p className="muted small">When your Android app sends audio, jobs will appear here.</p>
+              </div>
+            ) : (
+              <div className="job-list">
+                {jobs.map(job => (
+                  <JobCard
+                    key={job.jobId}
+                    job={job}
+                    onRetry={handleRetry}
+                    onCancel={handleCancel}
+                    expanded={expandedJob === job.jobId}
+                    onToggle={() => setExpandedJob(prev => prev === job.jobId ? null : job.jobId)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === 'setup' && (
+          <section className="setup-section">
+            <h2>Setup Guide</h2>
+            {status && !status.whisperAvailable && !status.ollamaAvailable ? (
+              <SetupGuide status={status} />
+            ) : (
+              <div>
+                <SetupGuide status={status} />
+                {status?.whisperAvailable && status?.ollamaAvailable && (
+                  <div className="all-good">
+                    ✅ Both whisper.cpp and Ollama are detected. The worker is ready to process audio.
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === 'about' && (
+          <section className="about-section-main">
+            <h2>P&B MGT Sys — AI Worker v1.1</h2>
+            <p>Local AI transcription and extraction for the Personal &amp; Business Life Management System.</p>
+            <ul>
+              <li>🔒 100% local — no cloud, no telemetry, no subscriptions</li>
+              <li>🎙 whisper.cpp — offline Bengali + English transcription</li>
+              <li>🤖 Ollama — local LLM extraction (task / note / idea suggestions)</li>
+              <li>📱 Android app → HTTP → Worker → suggestions back to phone</li>
+              <li>✅ All suggestions require your review before becoming records</li>
+            </ul>
+            <p className="muted small">Crafted with ❤️ by NasirPintu (Mohammad Nasiruddin Pintu)</p>
+          </section>
+        )}
+      </main>
+    </div>
+  );
 }

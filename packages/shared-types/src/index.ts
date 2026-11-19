@@ -227,6 +227,8 @@ export interface SyncConflict {
   resolution?: 'local_wins' | 'remote_wins' | 'manual_merged';
 }
 
+// ─── AI Job Queue ────────────────────────────────────────────────────────────
+
 /** Processing requests are durable queue records; they do not imply that AI is available. */
 export type AIJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type AIJobKind = 'transcription' | 'extraction' | 'classification' | 'ocr';
@@ -235,6 +237,8 @@ export interface AIJob {
   id: UUID;
   kind: AIJobKind;
   sourceInboxItemId: UUID;
+  attachmentRelativePath?: string; // path to audio file, relative to jobs dir
+  deviceId: UUID;
   status: AIJobStatus;
   attemptCount: number;
   requestedAt: ISOTimestamp;
@@ -243,6 +247,135 @@ export interface AIJob {
   errorCode?: string;
   errorMessage?: string;
   resultJson?: string;
+  modelVersion?: string;   // whisper model name or ollama model tag used
+  promptVersion?: string;  // extraction prompt version for traceability
+  schemaVersion?: string;  // output schema version
+}
+
+// ─── Extraction Output Schemas ───────────────────────────────────────────────
+
+/** Whisper transcription result */
+export interface TranscriptionResult {
+  schemaVersion: '1';
+  transcript: string;
+  language?: string;          // detected language code e.g. 'bn', 'en'
+  segments?: TranscriptSegment[];
+  whisperModel: string;
+  processingMs: number;
+}
+
+export interface TranscriptSegment {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+/** Ollama extraction result — only supported types, no financial extraction in v1.1 */
+export type ExtractionItemKind = 'note' | 'task' | 'space_suggestion' | 'idea';
+
+export interface ExtractionItem {
+  kind: ExtractionItemKind;
+  title: string;
+  body?: string;
+  spaceHint?: string;         // suggested space name (never auto-created)
+  dateExpression?: string;    // original spoken phrase e.g. "kal sokale"
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface ExtractionResult {
+  schemaVersion: '1';
+  items: ExtractionItem[];
+  ollamaModel: string;
+  promptVersion: string;
+  processingMs: number;
+  rawModelOutput?: string;    // kept for traceability/debugging
+}
+
+// ─── Worker API Contracts (HTTP) ─────────────────────────────────────────────
+
+/** POST /api/jobs — submit a new audio job */
+export interface SubmitJobRequest {
+  inboxItemId: UUID;
+  deviceId: UUID;
+  audioFileName: string;    // filename only; audio bytes sent as multipart
+}
+
+export interface SubmitJobResponse {
+  jobId: UUID;
+  status: 'queued';
+  message: string;
+}
+
+/** GET /api/jobs/:jobId — poll job status */
+export interface JobStatusResponse {
+  jobId: UUID;
+  inboxItemId: UUID;
+  status: AIJobStatus;
+  attemptCount: number;
+  requestedAt: ISOTimestamp;
+  startedAt?: ISOTimestamp;
+  completedAt?: ISOTimestamp;
+  transcript?: string;
+  extraction?: ExtractionResult;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+/** GET /api/jobs — list recent jobs */
+export interface JobListResponse {
+  jobs: JobStatusResponse[];
+}
+
+/** GET /api/status — worker health */
+export interface WorkerStatusResponse {
+  version: string;
+  ready: boolean;
+  whisperAvailable: boolean;
+  ollamaAvailable: boolean;
+  ollamaModel?: string;
+  queueLength: number;
+  processedToday: number;
+  uptime: number; // seconds
+}
+
+// ─── Proposal Review ─────────────────────────────────────────────────────────
+
+/** Machine suggestions remain unapproved until the user explicitly accepts them. */
+export interface ExtractionProposal<T> {
+  id: UUID;
+  sourceInboxItemId: UUID;
+  jobId: UUID;
+  kind: ExtractionItemKind | 'transaction';
+  confidence?: number;
+  payload: T;
+  status: 'pending_review' | 'approved' | 'edited' | 'rejected';
+  createdAt: ISOTimestamp;
+  reviewedAt?: ISOTimestamp;
+}
+
+// ─── Sync & Envelope ─────────────────────────────────────────────────────────
+
+export interface SyncChange {
+  id: UUID;
+  deviceId: UUID;
+  entityType: string;
+  entityId: UUID;
+  operation: 'INSERT' | 'UPDATE' | 'DELETE';
+  changePayloadJson: string;
+  sequenceNumber: number;
+  createdAt: ISOTimestamp;
+}
+
+export interface SyncConflict {
+  id: UUID;
+  entityType: string;
+  entityId: UUID;
+  localPayloadJson: string;
+  remotePayloadJson: string;
+  remoteDeviceId: UUID;
+  detectedAt: ISOTimestamp;
+  resolvedAt?: ISOTimestamp;
+  resolution?: 'local_wins' | 'remote_wins' | 'manual_merged';
 }
 
 /** A portable capture envelope for future phone/worker interchange. */
@@ -250,17 +383,6 @@ export interface CaptureEnvelope {
   schemaVersion: 1;
   item: InboxItem;
   attachment?: Attachment;
-}
-
-/** Machine suggestions remain unapproved until the user explicitly accepts them. */
-export interface ExtractionProposal<T> {
-  id: UUID;
-  sourceInboxItemId: UUID;
-  kind: 'task' | 'project' | 'note' | 'transaction' | 'idea';
-  confidence?: number;
-  payload: T;
-  status: 'pending_review' | 'approved' | 'edited' | 'rejected';
-  createdAt: ISOTimestamp;
 }
 
 /** Timestamp helper contract: generate ISO-8601 UTC strings, never local wall-clock strings. */

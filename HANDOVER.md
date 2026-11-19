@@ -2,35 +2,29 @@
 
 ## Current milestone
 
-**v0.3 — Daily Organizer (Core implementation complete; ready for device testing)**
+**v1.1 — Local AI Assistant (Completed & Verified)**
 
-The repository contains both applications: the Android-first daily organizer (`apps/android`) and the Windows local desktop shell (`apps/desktop`). Requirements and architecture are recorded in `docs/`; existing product details remain the source of truth.
+The repository contains both applications: the Android-first daily organizer (`apps/android`) and the Windows local desktop AI worker (`apps/desktop`). Requirements and architecture are recorded in `docs/`; existing product details remain the source of truth.
 
-## Implemented in v0.3 pass
+## Implemented in v1.1
 
-- 4-tab mobile navigation bar: **Today**, **Inbox**, **Tasks**, and **Spaces**.
-- **Today Dashboard:**
-  - Date header with reassuring local-first status ("● All local").
-  - User-curated **Top 3 Priorities** with task creation and focus management.
-  - Recent capture "Continue" card with direct audio playback/viewing.
-  - Pending tasks quick list with instant completion toggles.
-- **Task Management Engine:**
-  - Room entities and DAOs for tasks and spaces.
-  - New Task dialog with title, description, space selection, priority levels, and "Top 3 Focus" toggle.
-  - Fast task completion/reopening state persistence.
-- **Spaces Contexts:**
-  - Pre-seeded context spaces: **Shop**, **Personal**, and **App Development**.
-  - Space task counter and direct filtering into tasks by space.
-- **Search:**
-  - Live local search across task titles, task descriptions, and inbox captures.
-- **Android & CI Build:**
-  - Room schema version 2 configured with migration handling.
-  - Both `npm run build` and `npm run build:android` verified clean, generating the updated `app-debug.apk`.
+- **Desktop AI Worker (`apps/desktop`):**
+  - Embedded Express HTTP Server on port 7474 (`/api/status`, `/api/jobs`, retry/cancel).
+  - SQLite WAL-mode local job queue (`better-sqlite3`).
+  - whisper.cpp auto-detection and execution for local audio transcription.
+  - Ollama integration with structured prompt schemas for task and note extraction.
+  - Live desktop UI with processing queue, job detail expansion, setup guides, and status checks.
+- **Android Integration (`apps/android`):**
+  - `WorkerClient.kt`: HTTP client for audio multipart upload, health ping, and job status polling over local network.
+  - `AiJobManager.kt`: Room version 3 entity and DAO (`AiJobEntity`) for tracking submitted and completed AI jobs.
+  - `SettingsView`: AI Worker URL configuration and live connection test.
+  - `CaptureCard`: Interactive AI review card with "Transcribe with PC", real-time progress indicators, transcript viewer, and "+ Add as Task" one-tap approval into Room.
+- **Verification:**
+  - Android debug APK built cleanly: `BUILD SUCCESSFUL in 30s` (version 1.1.0, versionCode 4).
+  - Desktop Vite and TypeScript build verified clean: `built in 2.07s`.
 
-## Next action
+## Next milestone
 
-Install `app-debug.apk` onto the phone (OPPO A3x / Vivo Y20) and test:
-1. Navigation across all 4 tabs (Today, Inbox, Tasks, Spaces).
-2. Setting and checking off today's 3 focus priorities.
-3. Creating a task in the "Shop" space and filtering by space.
-4. Using the search bar to find an existing note or task.
+**v1.2 — Two-phone Synchronization and Resilience**
+- Secure peer-to-peer Wi-Fi / local network sync between OPPO A3x and Vivo Y20.
+- QR-code based pairing, change-log based incremental sync, and conflict resolution.

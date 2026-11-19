@@ -18,6 +18,8 @@ import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import com.nasirpintu.pblos.worker.AiJobDao
+import com.nasirpintu.pblos.worker.AiJobEntity
 
 @Entity(tableName = "devices")
 data class DeviceEntity(
@@ -295,12 +297,14 @@ interface CaptureDao {
         SpaceEntity::class,
         ProjectEntity::class,
         TaskEntity::class,
+        AiJobEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun captureDao(): CaptureDao
+    abstract fun aiJobDao(): AiJobDao
 
     companion object {
         private const val DATABASE_NAME = "pblos-local.db"

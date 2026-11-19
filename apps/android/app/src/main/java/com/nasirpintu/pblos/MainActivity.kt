@@ -84,6 +84,9 @@ import com.nasirpintu.pblos.data.InboxItemEntity
 import com.nasirpintu.pblos.data.InboxWithAttachments
 import com.nasirpintu.pblos.data.SpaceEntity
 import com.nasirpintu.pblos.data.TaskWithSpace
+import com.nasirpintu.pblos.worker.AiJobEntity
+import com.nasirpintu.pblos.worker.AiJobManager
+import com.nasirpintu.pblos.worker.WorkerClient
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -186,6 +189,57 @@ private fun DailyOrganizerApp() {
     var recordingStartedAt by remember { mutableStateOf(0L) }
     var elapsedSeconds by remember { mutableStateOf(0L) }
     var pendingMicrophoneRequest by remember { mutableStateOf(false) }
+
+    // Worker (AI) state
+    val aiJobManager = remember(context) { AiJobManager.get(context) }
+    var workerUrl by remember { mutableStateOf(WorkerClient.loadWorkerUrl(context) ?: "") }
+    var workerStatus by remember { mutableStateOf<String?>(null) }
+    val aiJobs by aiJobManager.observeJobs().collectAsStateWithLifecycle(initialValue = emptyList())
+    val aiJobsByInboxItem = remember(aiJobs) { aiJobs.associateBy { it.inboxItemId } }
+    val workerConfig = remember(workerUrl) {
+        if (workerUrl.isNotBlank()) WorkerClient.WorkerConfig(workerUrl, WorkerClient.loadDeviceId(context) ?: "") else null
+    }
+
+    LaunchedEffect(workerConfig, aiJobs) {
+        val pending = aiJobs.any { it.status == "queued" || it.status == "running" }
+        if (pending && workerConfig != null) {
+            delay(4000)
+            aiJobManager.pollAllPending(workerConfig)
+        }
+    }
+
+    val handleSendToAi: (InboxWithAttachments, File) -> Unit = { entry, file ->
+        val cfg = workerConfig
+        if (cfg != null) {
+            scope.launch {
+                val job = aiJobManager.enqueueJob(entry.item.id)
+                aiJobManager.submitToWorker(job, cfg, file)
+            }
+        } else {
+            Toast.makeText(context, "Configure AI Worker URL in Settings first", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val handlePollAi: (AiJobEntity) -> Unit = { job ->
+        workerConfig?.let { cfg ->
+            scope.launch {
+                aiJobManager.pollJob(job, cfg)
+            }
+        }
+    }
+
+    val handleApproveTask: (String, String?, String?, String) -> Unit = { title, desc, spaceHint, sourceInboxId ->
+        scope.launch {
+            val matchedSpace = spaces.find { it.name.equals(spaceHint, ignoreCase = true) || it.slug.equals(spaceHint, ignoreCase = true) }
+            repository.createTask(
+                title = title,
+                description = desc,
+                spaceId = matchedSpace?.id,
+                sourceInboxItemId = sourceInboxId,
+            )
+            Toast.makeText(context, "Task created from AI suggestion!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val startVoice: suspend () -> Unit = {
         try {
@@ -369,6 +423,11 @@ private fun DailyOrganizerApp() {
                             onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done); if (!done) ReminderManager.cancelTaskReminder(context, id) } },
                             onEditTask = { editingTask = it },
                             fileFor = repository::fileFor,
+                            aiJobsByInboxItem = aiJobsByInboxItem,
+                            workerConfig = workerConfig,
+                            onSendToAi = handleSendToAi,
+                            onPollAi = handlePollAi,
+                            onApproveTask = handleApproveTask,
                         )
                     } else {
                         when (currentTab) {
@@ -428,6 +487,11 @@ private fun DailyOrganizerApp() {
                                 },
                                 inbox = inbox,
                                 fileFor = repository::fileFor,
+                                aiJobsByInboxItem = aiJobsByInboxItem,
+                                workerConfig = workerConfig,
+                                onSendToAi = handleSendToAi,
+                                onPollAi = handlePollAi,
+                                onApproveTask = handleApproveTask,
                             )
                             AppNavTab.TASKS -> TasksView(
                                 tasks = if (selectedSpaceFilter == null) tasks else tasks.filter { it.task.spaceId == selectedSpaceFilter },
@@ -456,6 +520,24 @@ private fun DailyOrganizerApp() {
                                 onImport = { passphrase: String ->
                                     pendingImportPassphrase = passphrase
                                     openDocumentLauncher.launch(arrayOf("*/*"))
+                                },
+                                workerUrl = workerUrl,
+                                workerStatus = workerStatus,
+                                onSaveWorkerUrl = { url ->
+                                    workerUrl = url
+                                    WorkerClient.saveWorkerUrl(context, url)
+                                },
+                                onTestWorkerConnection = {
+                                    val url = workerUrl
+                                    if (url.isNotBlank()) {
+                                        workerStatus = "checking"
+                                        scope.launch {
+                                            val deviceId = WorkerClient.loadDeviceId(context) ?: ""
+                                            val config = WorkerClient.WorkerConfig(url, deviceId)
+                                            val result = WorkerClient.ping(config)
+                                            workerStatus = if (result != null) "online" else "offline"
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -736,6 +818,11 @@ private fun InboxView(
     onStopVoice: () -> Unit,
     inbox: List<InboxWithAttachments>,
     fileFor: (AttachmentEntity) -> File?,
+    aiJobsByInboxItem: Map<String, AiJobEntity> = emptyMap(),
+    workerConfig: WorkerClient.WorkerConfig? = null,
+    onSendToAi: ((InboxWithAttachments, File) -> Unit)? = null,
+    onPollAi: ((AiJobEntity) -> Unit)? = null,
+    onApproveTask: ((String, String?, String?, String) -> Unit)? = null,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -863,7 +950,15 @@ private fun InboxView(
             }
         } else {
             items(inbox, key = { it.item.id }) { entry ->
-                CaptureCard(entry, fileFor)
+                CaptureCard(
+                    entry = entry,
+                    fileFor = fileFor,
+                    job = aiJobsByInboxItem[entry.item.id],
+                    workerConfig = workerConfig,
+                    onSendToAi = onSendToAi,
+                    onPollAi = onPollAi,
+                    onApproveTask = onApproveTask,
+                )
             }
         }
     }
@@ -1000,6 +1095,11 @@ private fun SearchView(
     onToggleTask: (String, Boolean) -> Unit,
     onEditTask: (TaskWithSpace) -> Unit = {},
     fileFor: (AttachmentEntity) -> File?,
+    aiJobsByInboxItem: Map<String, AiJobEntity> = emptyMap(),
+    workerConfig: WorkerClient.WorkerConfig? = null,
+    onSendToAi: ((InboxWithAttachments, File) -> Unit)? = null,
+    onPollAi: ((AiJobEntity) -> Unit)? = null,
+    onApproveTask: ((String, String?, String?, String) -> Unit)? = null,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
@@ -1025,7 +1125,15 @@ private fun SearchView(
                 Text("MATCHING CAPTURES (${inbox.size})", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = BrandBlue, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
             }
             items(inbox, key = { "search_inbox_${it.item.id}" }) { entry ->
-                CaptureCard(entry, fileFor)
+                CaptureCard(
+                    entry = entry,
+                    fileFor = fileFor,
+                    job = aiJobsByInboxItem[entry.item.id],
+                    workerConfig = workerConfig,
+                    onSendToAi = onSendToAi,
+                    onPollAi = onPollAi,
+                    onApproveTask = onApproveTask,
+                )
             }
         }
 
@@ -1411,7 +1519,15 @@ private fun EditTaskDialog(
 // REUSABLE CAPTURE CARD & AUDIO BUTTON
 // -------------------------------------------------------------
 @Composable
-private fun CaptureCard(entry: InboxWithAttachments, fileFor: (AttachmentEntity) -> File?) {
+private fun CaptureCard(
+    entry: InboxWithAttachments,
+    fileFor: (AttachmentEntity) -> File?,
+    job: AiJobEntity? = null,
+    workerConfig: WorkerClient.WorkerConfig? = null,
+    onSendToAi: ((InboxWithAttachments, File) -> Unit)? = null,
+    onPollAi: ((AiJobEntity) -> Unit)? = null,
+    onApproveTask: ((String, String?, String?, String) -> Unit)? = null,
+) {
     val item = entry.item
     val isVoice = item.captureType == "voice"
     Card(colors = CardDefaults.cardColors(containerColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Border), shape = RoundedCornerShape(10.dp)) {
@@ -1427,8 +1543,145 @@ private fun CaptureCard(entry: InboxWithAttachments, fileFor: (AttachmentEntity)
                 val attachment = entry.attachments.firstOrNull()
                 val file = attachment?.let(fileFor)
                 Spacer(Modifier.height(8.dp))
-                if (file != null) AudioPlaybackButton(file)
-                else Text("Audio file is incomplete or unavailable.", color = Muted, fontSize = 11.sp)
+                if (file != null) {
+                    AudioPlaybackButton(file)
+
+                    // ── AI Worker Integration ──
+                    Spacer(Modifier.height(8.dp))
+                    if (job == null) {
+                        if (workerConfig != null) {
+                            OutlinedButton(
+                                onClick = { onSendToAi?.invoke(entry, file) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("🤖 Transcribe & Extract with PC", fontSize = 11.sp, color = BrandBlue)
+                            }
+                        } else {
+                            Surface(color = CardSurface, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
+                                Text("💡 Set Worker URL in ⚙️ Settings to transcribe with PC", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+                            }
+                        }
+                    } else {
+                        when (job.status) {
+                            "queued", "running" -> {
+                                Surface(color = Color(0xFFF0F4FF), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            "⟳ AI Worker: ${if (job.status == "running") "Transcribing…" else "In queue"}",
+                                            fontSize = 11.sp, color = BrandBlue, fontWeight = FontWeight.SemiBold,
+                                        )
+                                        TextButton(onClick = { onPollAi?.invoke(job) }) {
+                                            Text("Refresh", fontSize = 11.sp, color = BrandBlue)
+                                        }
+                                    }
+                                }
+                            }
+                            "failed" -> {
+                                Surface(color = Color(0xFFFDE8E8), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text("✕ ${job.errorMessage ?: "Worker processing failed"}", fontSize = 10.sp, color = AccentRed, modifier = Modifier.weight(1f))
+                                        TextButton(onClick = { onSendToAi?.invoke(entry, file) }) {
+                                            Text("Retry", fontSize = 11.sp, color = AccentRed)
+                                        }
+                                    }
+                                }
+                            }
+                            "completed" -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (!job.transcript.isNullOrBlank()) {
+                                        Surface(color = CardSurface, shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
+                                            Column(Modifier.padding(10.dp)) {
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                    Text("📝 TRANSCRIPT", fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = BrandBlue, letterSpacing = .8.sp)
+                                                    job.modelVersion?.let { Text(it, fontSize = 8.sp, color = Muted, fontFamily = FontFamily.Monospace) }
+                                                }
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(job.transcript, fontSize = 12.sp, color = Ink, lineHeight = 16.sp)
+                                            }
+                                        }
+                                    }
+
+                                    // Extracted suggestions
+                                    val items = remember(job.extractionJson) { AiJobManager.parseExtractionJson(job.extractionJson) }
+                                    if (items.isNotEmpty()) {
+                                        Text("AI SUGGESTIONS (${items.size})", fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = BrandBlue, letterSpacing = .8.sp)
+                                        items.forEach { extItem ->
+                                            var isAdded by remember { mutableStateOf(false) }
+                                            Surface(
+                                                color = Color.White,
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, if (extItem.kind == "task") BrandBlue.copy(alpha = 0.4f) else Border),
+                                                modifier = Modifier.fillMaxWidth(),
+                                            ) {
+                                                Column(Modifier.padding(10.dp)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                            Text(when (extItem.kind) { "task" -> "☑"; "idea" -> "💡"; "space_suggestion" -> "📁"; else -> "📝" }, fontSize = 12.sp)
+                                                            Spacer(Modifier.width(6.dp))
+                                                            Text(extItem.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                                                        }
+                                                        Surface(
+                                                            color = when (extItem.confidence) { "high" -> Color(0xFFE7F3EC); "medium" -> Color(0xFFFFF7E6); else -> CardSurface },
+                                                            shape = RoundedCornerShape(4.dp),
+                                                        ) {
+                                                            Text(extItem.confidence, fontSize = 8.sp, fontFamily = FontFamily.Monospace, color = when (extItem.confidence) { "high" -> SuccessGreen; "medium" -> AmberWarn; else -> Muted }, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                        }
+                                                    }
+                                                    extItem.body?.let {
+                                                        Text(it, fontSize = 11.sp, color = Muted, modifier = Modifier.padding(top = 2.dp))
+                                                    }
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                                                        extItem.spaceHint?.let {
+                                                            Surface(color = CardSurface, shape = RoundedCornerShape(4.dp)) {
+                                                                Text("📁 $it", fontSize = 8.sp, color = BrandBlue, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                            }
+                                                        }
+                                                        extItem.dateExpression?.let {
+                                                            Surface(color = CardSurface, shape = RoundedCornerShape(4.dp)) {
+                                                                Text("🗓 $it", fontSize = 8.sp, color = BrandBlue, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                            }
+                                                        }
+                                                    }
+                                                    if (extItem.kind == "task") {
+                                                        Spacer(Modifier.height(6.dp))
+                                                        if (isAdded) {
+                                                            Surface(color = Color(0xFFE7F3EC), shape = RoundedCornerShape(6.dp)) {
+                                                                Text("✓ Added as Task", fontSize = 10.sp, color = SuccessGreen, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                                            }
+                                                        } else {
+                                                            Button(
+                                                                onClick = {
+                                                                    onApproveTask?.invoke(extItem.title, extItem.body, extItem.spaceHint, item.id)
+                                                                    isAdded = true
+                                                                },
+                                                                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                modifier = Modifier.height(28.dp),
+                                                            ) {
+                                                                Text("+ Add as Task", fontSize = 10.sp)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text("Audio file is incomplete or unavailable.", color = Muted, fontSize = 11.sp)
+                }
             }
             item.lastError?.let { Text(it, color = Color(0xFFB54740), fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp)) }
             Text(item.capturedAt.replace('T', ' ').removeSuffix("Z"), color = Muted, fontFamily = FontFamily.Monospace, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))

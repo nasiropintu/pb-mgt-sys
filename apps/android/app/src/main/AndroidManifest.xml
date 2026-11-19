@@ -3,8 +3,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="P&amp;B MGT Sys" android:allowBackup="false" android:usesCleartextTraffic="false">
+    <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="P&amp;B MGT Sys" android:allowBackup="false" android:usesCleartextTraffic="true">
         <meta-data android:name="com.nasirpintu.creator" android:value="NasirPintu (Mohammad Nasiruddin Pintu)" />
         <meta-data android:name="com.nasirpintu.tagline" android:value="Crafted with ❤️ by NasirPintu" />
         <activity android:name=".MainActivity" android:exported="true">

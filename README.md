@@ -9,7 +9,7 @@ An Android-first, offline-capable personal and business management system with a
 
 ## Milestone status
 
-The repository contains the completed **v0.1** foundation, **v0.2** Local Capture Core, **v0.3** Daily Organizer, **v0.4** Data Safety & Recovery, and **v1.0** Daily-use Foundation. The Android app features Room-backed text/voice capture, app-private audio storage, playback, interrupted-recording recovery, task & space organization, AES-256-GCM encrypted backup & restore, task reminders with AlarmManager + NotificationChannel, due date picker (None / Today 6 PM / Tomorrow 9 AM / Custom), and automatic reminder rescheduling on device reboot. Built and verified on device. See [CHANGELOG.md](CHANGELOG.md) for details.
+The repository contains the completed **v0.1** foundation, **v0.2** Local Capture Core, **v0.3** Daily Organizer, **v0.4** Data Safety & Recovery, **v1.0** Daily-use Foundation, and **v1.1** Local AI Assistant. The system features Room-backed text/voice capture, app-private audio storage, playback, interrupted-recording recovery, task & space organization, AES-256-GCM encrypted backup & restore, local notifications with AlarmManager, Windows AI worker on local LAN with whisper.cpp transcription, Ollama structured suggestion extraction, and one-tap proposal approvals on Android. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## Backup & Restore (v0.4)
 

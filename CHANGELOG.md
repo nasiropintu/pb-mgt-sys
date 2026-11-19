@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.1 — Local AI Assistant
+
+- **Windows AI Worker HTTP Server** — Runs directly within the desktop Electron shell on port 7474 (`/api/status`, `/api/jobs`, `/api/jobs/:id`, retry/cancel).
+- **whisper.cpp Integration** — Local, zero-cloud Bengali + English audio transcription engine utilizing quantized whisper models (`ggml-small.bin`, `ggml-base.bin`).
+- **Ollama Structured Extraction** — Local LLM extraction extracting structured task suggestions, space associations, original spoken date expressions, and notes from transcripts with zero external API calls.
+- **Android AI Worker Client** — `WorkerClient.kt` for multipart audio streaming and status polling over LAN with zero cloud dependency.
+- **Android AI Job Queue (`AiJobManager`)** — Room database version 3 with `AiJobEntity` and `AiJobDao` for durable offline job tracking.
+- **Interactive Review Card in Inbox** — Capture cards now feature:
+  - "Transcribe & Extract with PC" action
+  - Real-time job status badges (`queued`, `running`, `failed`, `completed`)
+  - Full transcript preview with model attribution
+  - Structured suggestion cards with confidence badges, space hint tags, and "+ Add as Task" one-tap approval into Room.
+- **Settings AI Worker Configuration** — Add worker URL setting with live "Test Connection" status indicator.
+- Bump versions to `1.1.0` (Android versionCode 4).
+
 ## v1.0 — Daily-use Foundation
 
 - **Task Reminders & Local Notifications** — AlarmManager-powered exact alarms trigger system notifications at the task's due time, even after device reboot (`BOOT_COMPLETED` reschedules all pending reminders via `TaskReminderReceiver`).
