@@ -212,14 +212,15 @@ private fun CaptureHome() {
                     }
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("P&B Management Sys", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-                        Text("PERSONAL & BUSINESS WORKSPACE", fontSize = 8.sp, fontFamily = FontFamily.Monospace, color = Muted, letterSpacing = .8.sp)
+                        Text("P&B MGT Sys", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+                        Text("PRIVATE LIFE & WORK ORGANIZER", fontSize = 8.sp, fontFamily = FontFamily.Monospace, color = Muted, letterSpacing = .8.sp)
                     }
                     TextButton(onClick = { showAbout = true }) { Text("About", color = BrandBlue) }
                 }
                 Spacer(Modifier.height(18.dp))
                 Text("INBOX", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium, color = BrandBlue, letterSpacing = 1.2.sp)
-                Text("Capture it now. Organize it later.", color = Navy, fontSize = 23.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+                Text("Say it. Save it. Find it. Act on it.", color = Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
+                Text("Your life and work, in one calm place.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 16.dp))
 
                 // 1. Voice Note Hero Card (Top Priority Capture)
                 if (activeRecording == null) {
@@ -508,7 +509,7 @@ private fun AboutCreditsDialog(onClose: () -> Unit, openLink: (String) -> Unit) 
                 CreditRows(collaborators)
                 SectionDivider()
                 SectionTitle("‹/›  OPEN-SOURCE COMMUNITY CREDITS")
-                Text("P&B Management Sys is designed to run locally, with zero server costs, built on the shoulders of these open-source projects:", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp, bottom = 10.dp))
+                Text("P&B MGT Sys is designed to run locally, with zero server costs, built on the shoulders of these open-source projects:", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp, bottom = 10.dp))
                 CreditRows(openSource, openSource = true, openLink = openLink)
                 SectionDivider()
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(top = 12.dp)) {

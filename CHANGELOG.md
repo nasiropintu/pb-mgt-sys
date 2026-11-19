@@ -19,4 +19,6 @@
 - Added the v0.2 local capture storage decision record (ADR 0005).
 - Configured Gradle 8.14.3 wrapper with JDK 21 compatibility and root `npm run build:android` task.
 - Resolved Jetpack Compose, Lifecycle, and Room toolchain dependencies; verified clean build producing `app-debug.apk`.
-- Real-device field testing on OPPO A3x and Vivo Y20 verified as ready for physical installation.
+- Realigned project and application branding to **P&B MGT Sys** (Personal & Business Life Management System) per Brand Guide v1.0.
+- Elevated Voice Capture to primary hero card on Android mobile capture screen.
+- Verified offline capture, voice playback, and recovery on physical OPPO A3x device.

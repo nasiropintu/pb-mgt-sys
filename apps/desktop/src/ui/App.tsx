@@ -67,7 +67,7 @@ function AboutDialog({ close }: { close: () => void }) {
 
       <section className="about-section">
         <h3>‹/› &nbsp;Open-Source Community Credits</h3>
-        <p>Fold runs 100% locally on your machine with zero server costs, built on the shoulders of these open-source giants:</p>
+        <p>P&amp;B MGT Sys runs 100% locally on your machine with zero server costs, built on the shoulders of these open-source giants:</p>
         <div className="oss-grid">{openSource.map(([name, author, description, url]) => <a className="oss-card" href={url} target="_blank" rel="noopener noreferrer" key={name}>
           <div className="oss-head"><strong>{name}</strong><span>by {author} ↗</span></div><p>{description}</p>
         </a>)}</div>
@@ -81,16 +81,16 @@ function AboutDialog({ close }: { close: () => void }) {
 export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   return <div className="app-shell">
-    <aside className="sidebar"><div className="brand-mark">P&amp;B</div><div className="brand-name">P&amp;B Management Sys<small>LOCAL WORKSPACE</small></div>
+    <aside className="sidebar"><div className="brand-mark">P&amp;B</div><div className="brand-name">P&amp;B MGT Sys<small>PRIVATE LIFE &amp; WORK ORGANIZER</small></div>
       <nav aria-label="Main navigation"><button className="selected">Overview</button><button disabled>Processing queue</button><button disabled>Settings</button></nav>
       <button className="brand-credit" onClick={() => setAboutOpen(true)}>Crafted with ❤️ by NasirPintu</button>
     </aside>
-    <main><div className="topline"><span>P&amp;B MANAGEMENT SYS</span><span className="status"><i /> Foundation preview</span></div>
-      <section className="welcome"><span className="eyebrow">OPTIONAL · LOCAL · PRIVATE</span><h1>Your workspace,<br />ready when you are.</h1>
-        <p>P&amp;B Management Sys helps organize your personal and business life. This foundation is designed to keep your information private and available when you need it.</p>
+    <main><div className="topline"><span>P&amp;B MGT SYS</span><span className="status"><i /> Foundation preview</span></div>
+      <section className="welcome"><span className="eyebrow">OPTIONAL · LOCAL · PRIVATE</span><h1>Your life and work,<br />in one calm place.</h1>
+        <p>P&amp;B MGT Sys is your private life &amp; work organizer. Say it. Save it. Find it. Act on it.</p>
         <div className="notice"><span>✳</span><p><strong>Foundation preview</strong><br />Local capture, processing and synchronization will arrive in later milestones.</p></div></section>
       <section className="features"><article><span>01</span><h2>Private by design</h2><p>Designed for local processing with no required cloud account or paid AI service.</p></article><article><span>02</span><h2>Work from one place</h2><p>Keep personal and business information organized in one workspace.</p></article><article><span>03</span><h2>Stay in control</h2><p>Future AI results will be suggestions for you to review and approve.</p></article></section>
-      <footer className="app-footer">P&amp;B Management Sys <span>v0.1 foundation</span></footer>
+      <footer className="app-footer">P&amp;B MGT Sys <span>v0.1 foundation</span></footer>
     </main>
     {aboutOpen && <AboutDialog close={() => setAboutOpen(false)} />}
   </div>;

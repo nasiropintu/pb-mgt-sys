@@ -13,15 +13,15 @@ The repository contains both applications: the Android-first daily organizer (`a
 - Initial SQLite migration (`0001_initial.sql`) and shared capture/AI job contracts (`@pblos/shared-types`).
 - Android and desktop shell scaffolds building cleanly via `npm run build` and `npm run build:android`.
 - Brand assets and creator/collaboration credits in the root documentation and About modals.
-- P&B Management Sys display name and refreshed navy/blue UI theme.
+- P&B MGT Sys display name and brand identity (Personal & Business Life Management System).
 - Reference-matched About & Credits panel on the Windows and Android shells.
 - Room-backed local text and voice capture, app-private audio storage, playback, and interrupted-recording recovery.
 - Android toolchain resolved with Gradle 8.14.3 wrapper, JDK 21, AGP 8.13.2, SDK 36, and Room 2.8.5; output artifact generated at `apps/android/app/build/outputs/apk/debug/app-debug.apk`.
 
-## Ready for device installation
+## Device installation and verification
 
-- `app-debug.apk` is ready to be side-loaded or installed via ADB (`adb install apps/android/app/build/outputs/apk/debug/app-debug.apk`) onto OPPO A3x and Vivo Y20.
-- Manual device checklist: text capture offline save/reopen, voice record/playback, low-space guard, and process-kill recovery test.
+- `app-debug.apk` built and successfully verified on physical OPPO A3x (text capture offline save/reopen, voice record/playback, and process-interruption recovery).
+- Ready for testing on Vivo Y20.
 
 ## Next milestone
 

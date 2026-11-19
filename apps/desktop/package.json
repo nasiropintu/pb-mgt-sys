@@ -2,7 +2,7 @@
   "name": "pblos-windows-worker",
   "version": "0.1.0",
   "private": true,
-  "description": "Private personal and business management workspace",
+  "description": "Personal & Business Life Management System — Private life & work organizer",
   "author": "NasirPintu <https://github.com/nasiropintu>",
   "homepage": "https://github.com/nasiropintu",
   "license": "MIT",
@@ -19,5 +19,5 @@
     "concurrently": "^9.2.0", "electron": "39.8.10", "electron-builder": "^26.0.0",
     "typescript": "~5.9.0", "vite": "^7.1.0", "wait-on": "^8.0.0"
   },
-  "build": { "appId": "com.nasirpintu.pblos.worker", "productName": "P&B Management Sys", "directories": { "output": "release" }, "files": ["dist/**/*", "electron/**/*"], "win": { "target": "nsis" } }
+  "build": { "appId": "com.nasirpintu.pbmgt.worker", "productName": "P&B MGT Sys", "directories": { "output": "release" }, "files": ["dist/**/*", "electron/**/*"], "win": { "target": "nsis" } }
 }

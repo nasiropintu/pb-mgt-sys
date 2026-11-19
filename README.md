@@ -1,12 +1,15 @@
-# Personal Business & Life OS
+# P&B MGT Sys
 
-**Application display name:** P&B Management Sys
+**Full project name:** Personal & Business Life Management System  
+**Descriptor:** Private life & work organizer  
+**Tagline:** Your life and work, in one calm place.  
+**Functional line:** Say it. Save it. Find it. Act on it.
 
-An Android-first, offline-capable personal organizer with an optional Windows AI worker. Product requirements and roadmap are documented in [the master specification](Personal_Business_Life_OS_Project_Details_v1.0.md) and [the execution roadmap](Personal_Business_Life_OS_Version_Based_Development_Roadmap_v1.0.md).
+An Android-first, offline-capable personal and business management system with an optional Windows desktop worker. Product requirements and roadmap are documented in [the master specification](Personal_Business_Life_OS_Project_Details_v1.0.md) and [the execution roadmap](Personal_Business_Life_OS_Version_Based_Development_Roadmap_v1.0.md).
 
-## Phase 0 status
+## Milestone status
 
-The repository contains the v0.1 foundation and an in-progress v0.2 Android local-capture slice. The Android app now has Room-backed text/voice capture, app-private audio storage, playback, and interrupted-recording recovery; Android build and real-device verification remain pending. See [HANDOVER.md](HANDOVER.md) for the next action.
+The repository contains the completed **v0.1** foundation and **v0.2** Local Capture Core. The Android app features Room-backed text/voice capture, app-private audio storage, playback, and interrupted-recording recovery, built and verified on device (OPPO A3x). See [HANDOVER.md](HANDOVER.md) for details and next actions.
 
 ## Project structure
 
