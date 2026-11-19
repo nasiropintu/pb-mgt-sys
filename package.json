@@ -1,0 +1,24 @@
+{
+  "name": "personal-business-life-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first Personal Business & Life OS",
+  "author": "NasirPintu <https://github.com/nasiropintu>",
+  "homepage": "https://github.com/nasiropintu",
+  "license": "MIT",
+  "workspaces": [
+    "apps/desktop",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "build:desktop": "npm run build --workspace=pblos-windows-worker",
+    "build:types": "npm run build --workspace=@pblos/shared-types",
+    "build": "npm run build:types && npm run build:desktop",
+    "build:android": "cmd /c \"cd apps\\android && gradlew.bat :app:assembleDebug\""
+  },
+  "allowScripts": {
+    "electron@39.8.10": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.28.2": true
+  }
+}

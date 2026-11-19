@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="P&amp;B Management Sys" android:allowBackup="false" android:usesCleartextTraffic="false">
+        <meta-data android:name="com.nasirpintu.creator" android:value="NasirPintu (Mohammad Nasiruddin Pintu)" />
+        <meta-data android:name="com.nasirpintu.tagline" android:value="Crafted with ❤️ by NasirPintu" />
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

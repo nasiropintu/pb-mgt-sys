@@ -1,0 +1,61 @@
+# Personal Business & Life OS
+
+**Application display name:** P&B Management Sys
+
+An Android-first, offline-capable personal organizer with an optional Windows AI worker. Product requirements and roadmap are documented in [the master specification](Personal_Business_Life_OS_Project_Details_v1.0.md) and [the execution roadmap](Personal_Business_Life_OS_Version_Based_Development_Roadmap_v1.0.md).
+
+## Phase 0 status
+
+The repository contains the v0.1 foundation and an in-progress v0.2 Android local-capture slice. The Android app now has Room-backed text/voice capture, app-private audio storage, playback, and interrupted-recording recovery; Android build and real-device verification remain pending. See [HANDOVER.md](HANDOVER.md) for the next action.
+
+## Project structure
+
+- `apps/android` — Android capture and organizer app (Kotlin/Jetpack Compose)
+- `apps/desktop` — Windows local worker shell (Electron/React/TypeScript)
+- `packages/shared-types` — cross-platform domain types
+- `database/migrations` — versioned SQLite schema
+- `docs` — requirements, architecture and decisions
+
+## Development
+
+The Android app is built with Gradle and the desktop app with npm. From the repository root, run `npm install`, `npm run build`, and (with Gradle/Android SDK installed) `npm run build:android`. Do not treat an unverified scaffold as a working build.
+
+---
+
+## Creator & Vision
+
+**NasirPintu** (Mohammad Nasiruddin Pintu)  
+*Creator, Product Architect & Open-Source Builder*
+
+* **GitHub:** [@nasiropintu](https://github.com/nasiropintu)
+* **X (Twitter):** [@nasiropintu](https://x.com/nasiropintu)
+* **Instagram:** [@the_np2](https://www.instagram.com/the_np2/)
+* **Facebook:** [mohammadnasiruddin.pintu](https://www.facebook.com/mohammadnasiruddin.pintu/)
+
+## Human + AI Collaboration Credits
+
+Architected and guided by **NasirPintu** in collaboration with AI assistants:
+
+* **Gemini** (Google DeepMind) — Architecture and agentic workflows.
+* **Manus** (Manus AI) — Autonomous planning and synthesis.
+* **ChatGPT** (OpenAI) — Logic synthesis and reasoning.
+* **DeepSeek** — Algorithmic problem-solving.
+* **Claude** (Anthropic) — Systems reasoning and technical drafting.
+* **Vibe by Mistral** (Mistral AI) — Fast generation and execution.
+
+## Open-source acknowledgements
+
+The About & Credits panel links to the projects used by the current application shells:
+
+* **React** and **React DOM** — Meta; desktop interface components and rendering.
+* **Electron** — OpenJS Foundation; Windows desktop runtime.
+* **Vite** — Vite Team; frontend development and production bundling.
+* **TypeScript** — Microsoft; typed desktop code and shared contracts.
+* **Kotlin** — JetBrains; Android application language.
+* **Jetpack Compose**, **Material 3**, **AndroidX Activity Compose**, **Room**, and **Lifecycle Runtime Compose** — AndroidX/Google; Android UI, lifecycle, and local persistence.
+* **Gradle** and the **Android Gradle Plugin** — build automation and Android packaging.
+* **electron-builder** — Windows application packaging and installer generation.
+
+The About & Credits cards link to each project’s official home or documentation page.
+
+**Crafted with ❤️ by NasirPintu**

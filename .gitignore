@@ -1,0 +1,37 @@
+# Android / Gradle
+.gradle/
+**/.gradle/
+build/
+**/build/
+local.properties
+**/local.properties
+.idea/
+**/.idea/
+*.iml
+*.apk
+
+# Node / Electron
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+release/
+**/release/
+out/
+**/out/
+*.tsbuildinfo
+npm-debug.log*
+
+# User data and local secrets
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+
+# OS/editor
+.DS_Store
+Thumbs.db
+desktop.ini
+

@@ -1,0 +1,17 @@
+{
+  "name": "@pblos/shared-types",
+  "version": "0.1.0",
+  "description": "Core TypeScript interfaces and domain types for Personal Business & Life OS (PBLOS)",
+  "author": "NasirPintu <https://github.com/nasiropintu>",
+  "homepage": "https://github.com/nasiropintu",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "node ../../node_modules/typescript/bin/tsc",
+    "test": "echo \"Shared types verified.\""
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
