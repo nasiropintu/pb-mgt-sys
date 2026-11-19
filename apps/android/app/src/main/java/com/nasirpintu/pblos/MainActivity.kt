@@ -27,6 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.widget.Toast
+import com.nasirpintu.pblos.data.BackupManager
 import com.nasirpintu.pblos.ui.SettingsView
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -83,8 +85,10 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Navy = Color(0xFF111C2F)
 private val BrandBlue = Color(0xFF2858A5)
@@ -195,6 +199,64 @@ private fun DailyOrganizerApp() {
         if (granted && pendingMicrophoneRequest) scope.launch { startVoice() }
         else if (!granted) captureError = "Microphone permission is needed to record a voice note."
         pendingMicrophoneRequest = false
+    }
+
+    var pendingExportPassphrase by remember { mutableStateOf<String?>(null) }
+    var pendingImportPassphrase by remember { mutableStateOf<String?>(null) }
+
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        val passphrase = pendingExportPassphrase
+        pendingExportPassphrase = null
+        if (uri != null && !passphrase.isNullOrBlank()) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val backupFile = BackupManager(context).exportEncryptedBackup(passphrase)
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        backupFile.inputStream().use { input -> input.copyTo(out) }
+                    }
+                    backupFile.delete()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Encrypted backup saved successfully!", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val passphrase = pendingImportPassphrase
+        pendingImportPassphrase = null
+        if (uri != null && !passphrase.isNullOrBlank()) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val tempFile = File(context.cacheDir, "import_${System.currentTimeMillis()}.bin")
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        tempFile.outputStream().use { out -> input.copyTo(out) }
+                    }
+                    val result = BackupManager(context).importEncryptedBackup(tempFile, passphrase)
+                    tempFile.delete()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            context,
+                            if (result.success) "Restore successful: ${result.message}" else result.message,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
     }
 
     LaunchedEffect(repository) {
@@ -366,10 +428,13 @@ private fun DailyOrganizerApp() {
                             )
                             AppNavTab.SETTINGS -> SettingsView(
                                 onExport = { passphrase: String ->
-                                    // TODO: invoke BackupManager.exportEncryptedBackup(passphrase)
+                                    pendingExportPassphrase = passphrase
+                                    val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                                    createDocumentLauncher.launch("pblos-backup-$timestamp.bin")
                                 },
                                 onImport = { passphrase: String ->
-                                    // TODO: invoke BackupManager.importEncryptedBackup(file, passphrase)
+                                    pendingImportPassphrase = passphrase
+                                    openDocumentLauncher.launch(arrayOf("*/*"))
                                 }
                             )
                         }

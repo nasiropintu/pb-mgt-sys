@@ -1,13 +1,17 @@
 package com.nasirpintu.pblos.data
 
 import android.content.Context
+import com.google.gson.Gson
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
 import javax.crypto.CipherOutputStream
@@ -16,15 +20,33 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+
+data class BackupPayload(
+    val version: Int = 1,
+    val exportedAt: String = "",
+    val devices: List<DeviceEntity> = emptyList(),
+    val spaces: List<SpaceEntity> = emptyList(),
+    val tasks: List<TaskEntity> = emptyList(),
+    val inbox: List<InboxItemEntity> = emptyList(),
+    val attachments: List<AttachmentEntity> = emptyList(),
+)
+
+data class BackupResult(
+    val success: Boolean,
+    val message: String,
+    val restoredDevices: Int = 0,
+    val restoredSpaces: Int = 0,
+    val restoredTasks: Int = 0,
+    val restoredInbox: Int = 0,
+)
 
 /**
- * Simple backup manager that exports/imports the entire Room database as JSON,
- * encrypts it with AES‑GCM using a key derived from a user‑provided passphrase
- * via PBKDF2‑SHA‑256 (100 000 iterations, 16‑byte salt).
- * The resulting file format is:
- *   [16‑byte salt][12‑byte IV][ciphertext][32‑byte SHA‑256 hash of plaintext]
+ * Backup manager that exports and imports the entire Room database as JSON,
+ * encrypts it with AES-GCM (256-bit) using a key derived from a user-provided passphrase
+ * via PBKDF2-SHA-256 (100,000 iterations, 16-byte salt).
+ *
+ * File wire format:
+ *   [16-byte salt][12-byte IV][AES-GCM ciphertext + 16-byte tag][32-byte SHA-256 hash of plaintext]
  */
 class BackupManager(private val context: Context) {
     private val gson = Gson()
@@ -35,24 +57,25 @@ class BackupManager(private val context: Context) {
     private val tagSizeBits = 128
     private val saltSize = 16
 
-    /** Export all tables as encrypted JSON file */
+    /** Export all tables as an encrypted binary backup file */
     fun exportEncryptedBackup(passphrase: String): File {
-        // 1️⃣ Gather data from Room (serialize to JSON)
-        val db = LocalDatabase.getInstance(context) // singleton accessor
-        val export: Map<String, Any> = mapOf(
-            "devices" to db.captureDao().getAllDevicesSync(),
-            "spaces" to db.captureDao().getAllSpacesSync(),
-            "tasks" to db.captureDao().getAllTasksSync(),
-            "inbox" to db.captureDao().getAllInboxSync()
+        val db = LocalDatabase.getInstance(context)
+        val dao = db.captureDao()
+        val payload = BackupPayload(
+            version = 1,
+            exportedAt = isoUtcNow(),
+            devices = dao.getAllDevicesSync(),
+            spaces = dao.getAllSpacesSync(),
+            tasks = dao.getAllTasksSync(),
+            inbox = dao.getAllInboxSync(),
+            attachments = dao.getAllAttachmentsSync(),
         )
-        val plainJson = gson.toJson(export)
+        val plainJson = gson.toJson(payload)
 
-        // 2️⃣ Derive key & generate IV + salt
         val salt = ByteArray(saltSize).also { secureRandom.nextBytes(it) }
         val key = deriveKey(passphrase, salt)
         val iv = ByteArray(ivSize).also { secureRandom.nextBytes(it) }
 
-        // 3️⃣ Encrypt
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val spec = GCMParameterSpec(tagSizeBits, iv)
         cipher.init(Cipher.ENCRYPT_MODE, key, spec)
@@ -60,10 +83,8 @@ class BackupManager(private val context: Context) {
         CipherOutputStream(cipherOut, cipher).use { it.write(plainJson.toByteArray(Charsets.UTF_8)) }
         val ciphertext = cipherOut.toByteArray()
 
-        // 4️⃣ Compute integrity hash of plaintext
         val hash = MessageDigest.getInstance("SHA-256").digest(plainJson.toByteArray(Charsets.UTF_8))
 
-        // 5️⃣ Assemble file: salt | iv | ciphertext | hash
         val outFile = File(context.cacheDir, "pblos_backup_${System.currentTimeMillis()}.bin")
         FileOutputStream(outFile).use { fos ->
             fos.write(salt)
@@ -74,37 +95,63 @@ class BackupManager(private val context: Context) {
         return outFile
     }
 
-    /** Import an encrypted backup file, return true on success */
-    fun importEncryptedBackup(backupFile: File, passphrase: String): Boolean {
+    /** Import an encrypted backup file, decrypt with passphrase, verify SHA-256 integrity, and restore Room entities */
+    fun importEncryptedBackup(backupFile: File, passphrase: String): BackupResult {
         val allBytes = backupFile.readBytes()
-        if (allBytes.size < saltSize + ivSize + tagSizeBits / 8 + 32) return false
+        if (allBytes.size < saltSize + ivSize + tagSizeBits / 8 + 32) {
+            return BackupResult(false, "File is too small or corrupted.")
+        }
         var offset = 0
         val salt = allBytes.sliceArray(offset until offset + saltSize).also { offset += saltSize }
         val iv = allBytes.sliceArray(offset until offset + ivSize).also { offset += ivSize }
         val hash = allBytes.sliceArray(allBytes.size - 32 until allBytes.size)
         val cipherText = allBytes.sliceArray(offset until allBytes.size - 32)
 
-        val key = deriveKey(passphrase, salt)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        val spec = GCMParameterSpec(tagSizeBits, iv)
-        cipher.init(Cipher.DECRYPT_MODE, key, spec)
-        val plainBytes = CipherInputStream(ByteArrayInputStream(cipherText), cipher).readBytes()
-        val computedHash = MessageDigest.getInstance("SHA-256").digest(plainBytes)
-        if (!hash.contentEquals(computedHash)) return false // integrity check failed
-
-        // 6️⃣ Parse JSON and write back to Room
-        val type = object : TypeToken<Map<String, List<Any>>>() {}.type
-        val data: Map<String, List<Any>> = gson.fromJson(String(plainBytes, Charsets.UTF_8), type)
-        // Simple implementation: clear tables then insert – production code would handle migrations
-        val db = LocalDatabase.getInstance(context)
-        db.runInTransaction {
-            db.captureDao().clearAllDevices()
-            db.captureDao().clearAllSpaces()
-            db.captureDao().clearAllTasks()
-            db.captureDao().clearAllInbox()
-            // Insert parsed entities here as needed.
+        val plainBytes = try {
+            val key = deriveKey(passphrase, salt)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            val spec = GCMParameterSpec(tagSizeBits, iv)
+            cipher.init(Cipher.DECRYPT_MODE, key, spec)
+            CipherInputStream(ByteArrayInputStream(cipherText), cipher).readBytes()
+        } catch (e: Exception) {
+            return BackupResult(false, "Decryption failed. Incorrect passphrase or modified file.")
         }
-        return true
+
+        val computedHash = MessageDigest.getInstance("SHA-256").digest(plainBytes)
+        if (!hash.contentEquals(computedHash)) {
+            return BackupResult(false, "Integrity check failed. Backup data is corrupted.")
+        }
+
+        val payload = try {
+            gson.fromJson(String(plainBytes, Charsets.UTF_8), BackupPayload::class.java)
+        } catch (e: Exception) {
+            return BackupResult(false, "Failed to parse backup payload: ${e.message}")
+        }
+
+        val db = LocalDatabase.getInstance(context)
+        val dao = db.captureDao()
+        db.runInTransaction {
+            dao.clearAllAttachments()
+            dao.clearAllInbox()
+            dao.clearAllTasks()
+            dao.clearAllSpaces()
+            dao.clearAllDevices()
+
+            if (payload.devices.isNotEmpty()) dao.insertDevicesSync(payload.devices)
+            if (payload.spaces.isNotEmpty()) dao.insertSpacesSync(payload.spaces)
+            if (payload.tasks.isNotEmpty()) dao.insertTasksSync(payload.tasks)
+            if (payload.inbox.isNotEmpty()) dao.insertInboxSync(payload.inbox)
+            if (payload.attachments.isNotEmpty()) dao.insertAttachmentsSync(payload.attachments)
+        }
+
+        return BackupResult(
+            success = true,
+            message = "Restored ${payload.tasks.size} tasks, ${payload.spaces.size} spaces, and ${payload.inbox.size} inbox items.",
+            restoredDevices = payload.devices.size,
+            restoredSpaces = payload.spaces.size,
+            restoredTasks = payload.tasks.size,
+            restoredInbox = payload.inbox.size,
+        )
     }
 
     private fun deriveKey(passphrase: String, salt: ByteArray): SecretKey {
@@ -113,4 +160,8 @@ class BackupManager(private val context: Context) {
         val tmp = factory.generateSecret(spec)
         return SecretKeySpec(tmp.encoded, "AES")
     }
+
+    private fun isoUtcNow(): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }.format(Date())
 }

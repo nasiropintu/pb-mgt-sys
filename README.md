@@ -9,7 +9,13 @@ An Android-first, offline-capable personal and business management system with a
 
 ## Milestone status
 
-The repository contains the completed **v0.1** foundation and **v0.2** Local Capture Core. The Android app features Room-backed text/voice capture, app-private audio storage, playback, and interrupted-recording recovery, built and verified on device (OPPO A3x). See [HANDOVER.md](HANDOVER.md) for details and next actions.
+The repository contains the completed **v0.1** foundation, **v0.2** Local Capture Core, **v0.3** Daily Organizer, and **v0.4** Data Safety & Recovery. The Android app features Room-backed text/voice capture, app-private audio storage, playback, interrupted-recording recovery, task & space organization, and AES-256-GCM encrypted backup & restore, built and verified on device. See [HANDOVER.md](HANDOVER.md) for details.
+
+## Backup & Restore (v0.4)
+
+P&B MGT Sys guarantees complete local data sovereignty with zero telemetry:
+- **Encrypted Export:** From the Settings tab (⚙️), enter a secure passphrase. The app derives an AES-256 key using PBKDF2-SHA-256 (100,000 iterations) and generates an encrypted archive with an appended SHA-256 integrity hash. Android's file picker lets you save the backup anywhere on your device, SD card, or preferred offline storage.
+- **Integrity-Verified Restore:** Select an existing backup file and provide the original passphrase. The app verifies the cryptographic signature before restoring spaces, tasks, inbox captures, and device identities in a single SQLite transaction.
 
 ## Project structure
 

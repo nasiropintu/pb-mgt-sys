@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4 — Data Safety & Recovery
+
+- Added persistent Settings tab (⚙️) with client-side Encrypted Backup & Restore interface.
+- Implemented `BackupManager` with AES-256-GCM encryption and PBKDF2-SHA-256 key derivation (100,000 iterations, 16-byte random salt, 12-byte IV).
+- Added cryptographic SHA-256 payload integrity check to verify backup authenticity before database restoration.
+- Integrated Android Storage Access Framework (SAF) document pickers for exporting `.bin` / `.pblos` backup files and restoring from device storage.
+- Added full database serialization and transactional restore across devices, spaces, tasks, inbox notes, and attachments.
+- Resolved Jetpack Compose `AlertDialog` imports, updated Gradle packaging configuration, and streamlined Room database singleton management.
+
 ## Unreleased — v0.1 foundation
 
 - Added Phase 0 requirements, architecture, and decision records.

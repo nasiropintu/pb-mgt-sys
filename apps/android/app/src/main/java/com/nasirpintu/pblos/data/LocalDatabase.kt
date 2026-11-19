@@ -247,6 +247,24 @@ interface CaptureDao {
     @Query("SELECT * FROM inbox_items")
     fun getAllInboxSync(): List<InboxItemEntity>
 
+    @Query("SELECT * FROM attachments")
+    fun getAllAttachmentsSync(): List<AttachmentEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertDevicesSync(devices: List<DeviceEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertSpacesSync(spaces: List<SpaceEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertTasksSync(tasks: List<TaskEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertInboxSync(items: List<InboxItemEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertAttachmentsSync(attachments: List<AttachmentEntity>)
+
     @Query("DELETE FROM devices")
     fun clearAllDevices()
 
@@ -258,6 +276,9 @@ interface CaptureDao {
 
     @Query("DELETE FROM inbox_items")
     fun clearAllInbox()
+
+    @Query("DELETE FROM attachments")
+    fun clearAllAttachments()
 }
 
 @Database(
