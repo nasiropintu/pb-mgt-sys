@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0 — Daily-use Foundation
+
+- **Task Reminders & Local Notifications** — AlarmManager-powered exact alarms trigger system notifications at the task's due time, even after device reboot (`BOOT_COMPLETED` reschedules all pending reminders via `TaskReminderReceiver`).
+- **Due Date Picker** — New inline `DueDatePickerRow` in task creation and editing dialogs with quick-select chips: None, Today 6 PM, Tomorrow 9 AM, or Custom (date + time pickers). Reminders are automatically scheduled, rescheduled, or cancelled on save/delete/completion.
+- **Overdue task badge** — Task cards show a ⏰ date badge; badge turns red when a task is past its due date and not yet completed.
+- **Notification permission** — Android 13+ POST_NOTIFICATIONS permission requested at startup; SCHEDULE_EXACT_ALARM permission declared for precise alarm delivery.
+- **Task cancel-on-complete** — Completing or deleting a task automatically cancels its pending reminder alarm.
+- Bump version to `1.0.0` (versionCode 3).
+
 ## v0.4 — Data Safety & Recovery
 
 - Added persistent Settings tab (⚙️) with client-side Encrypted Backup & Restore interface.

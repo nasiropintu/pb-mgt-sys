@@ -158,6 +158,7 @@ class CaptureRepository private constructor(private val context: Context, privat
         description: String? = null,
         spaceId: String? = null,
         priority: String = "normal",
+        dueAt: String? = null,
         isFocusToday: Boolean = false,
     ) = withContext(Dispatchers.IO) {
         val cleanTitle = title.trim()
@@ -170,6 +171,7 @@ class CaptureRepository private constructor(private val context: Context, privat
                     description = description?.trim()?.takeIf { it.isNotBlank() },
                     spaceId = spaceId?.takeIf { it.isNotBlank() },
                     priority = priority,
+                    dueAt = dueAt,
                     isFocusToday = if (isFocusToday) 1 else 0,
                     updatedAt = now,
                 )

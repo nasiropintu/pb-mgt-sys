@@ -27,8 +27,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.widget.Toast
 import com.nasirpintu.pblos.data.BackupManager
+import com.nasirpintu.pblos.notifications.ReminderManager
 import com.nasirpintu.pblos.ui.SettingsView
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -83,6 +86,7 @@ import com.nasirpintu.pblos.data.SpaceEntity
 import com.nasirpintu.pblos.data.TaskWithSpace
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -200,6 +204,19 @@ private fun DailyOrganizerApp() {
         if (granted && pendingMicrophoneRequest) scope.launch { startVoice() }
         else if (!granted) captureError = "Microphone permission is needed to record a voice note."
         pendingMicrophoneRequest = false
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        ReminderManager.createNotificationChannel(context)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
 
     var pendingExportPassphrase by remember { mutableStateOf<String?>(null) }
@@ -349,7 +366,7 @@ private fun DailyOrganizerApp() {
                             query = searchQuery,
                             tasks = tasks.filter { it.task.title.contains(searchQuery, ignoreCase = true) || (it.task.description?.contains(searchQuery, ignoreCase = true) == true) },
                             inbox = inbox.filter { it.item.rawContent?.contains(searchQuery, ignoreCase = true) == true },
-                            onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
+                            onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done); if (!done) ReminderManager.cancelTaskReminder(context, id) } },
                             onEditTask = { editingTask = it },
                             fileFor = repository::fileFor,
                         )
@@ -359,7 +376,7 @@ private fun DailyOrganizerApp() {
                                 focusTasks = focusTasks,
                                 pendingTasks = pendingTasks,
                                 latestCapture = latestCapture,
-                                onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
+                                onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done); if (!done) ReminderManager.cancelTaskReminder(context, id) } },
                                 onRemoveFocus = { id -> scope.launch { repository.toggleTaskFocus(id, true) } },
                                 onAddFocus = { id -> scope.launch { repository.toggleTaskFocus(id, false) } },
                                 onEditTask = { editingTask = it },
@@ -417,7 +434,7 @@ private fun DailyOrganizerApp() {
                                 spaces = spaces,
                                 selectedSpaceFilter = selectedSpaceFilter,
                                 onSelectSpaceFilter = { selectedSpaceFilter = it },
-                                onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
+                                onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done); if (!done) ReminderManager.cancelTaskReminder(context, id) } },
                                 onToggleFocus = { id, isFocused -> scope.launch { repository.toggleTaskFocus(id, isFocused) } },
                                 onEditTask = { editingTask = it },
                                 onCreateTask = { showCreateTask = true },
@@ -481,15 +498,23 @@ private fun DailyOrganizerApp() {
             CreateTaskDialog(
                 spaces = spaces,
                 onDismiss = { showCreateTask = false },
-                onCreate = { title, desc, spaceId, priority, isFocus ->
+                onCreate = { title, desc, spaceId, priority, dueAt, isFocus ->
                     scope.launch {
-                        repository.createTask(
+                        val id = repository.createTask(
                             title = title,
                             description = desc,
                             spaceId = spaceId,
                             priority = priority,
+                            dueAt = dueAt,
                             isFocusToday = isFocus,
                         )
+                        dueAt?.let { iso ->
+                            val millis = ReminderManager.parseIsoToMillis(iso)
+                            if (millis != null && millis > System.currentTimeMillis()) {
+                                val space = spaces.find { it.id == spaceId }
+                                ReminderManager.scheduleTaskReminder(context, id, title, space?.name, millis)
+                            }
+                        }
                         showCreateTask = false
                     }
                 },
@@ -501,7 +526,7 @@ private fun DailyOrganizerApp() {
                 taskWithSpace = taskWithSpace,
                 spaces = spaces,
                 onDismiss = { editingTask = null },
-                onSave = { title, desc, spaceId, priority, isFocus ->
+                onSave = { title, desc, spaceId, priority, dueAt, isFocus ->
                     scope.launch {
                         repository.updateTaskDetails(
                             id = taskWithSpace.task.id,
@@ -509,13 +534,23 @@ private fun DailyOrganizerApp() {
                             description = desc,
                             spaceId = spaceId,
                             priority = priority,
+                            dueAt = dueAt,
                             isFocusToday = isFocus,
                         )
+                        ReminderManager.cancelTaskReminder(context, taskWithSpace.task.id)
+                        dueAt?.let { iso ->
+                            val millis = ReminderManager.parseIsoToMillis(iso)
+                            if (millis != null && millis > System.currentTimeMillis()) {
+                                val space = spaces.find { it.id == spaceId }
+                                ReminderManager.scheduleTaskReminder(context, taskWithSpace.task.id, title, space?.name, millis)
+                            }
+                        }
                         editingTask = null
                     }
                 },
                 onDelete = {
                     scope.launch {
+                        ReminderManager.cancelTaskReminder(context, taskWithSpace.task.id)
                         repository.deleteTask(taskWithSpace.task.id)
                         editingTask = null
                     }
@@ -1047,6 +1082,23 @@ private fun TaskItemCard(
                             Text(it.name, fontSize = 8.sp, fontFamily = FontFamily.Monospace, color = BrandBlue, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
                         }
                     }
+                    item.task.dueAt?.let { dueIso ->
+                        ReminderManager.formatDisplayDate(dueIso)?.let { formattedDate ->
+                            val isOverdue = ReminderManager.parseIsoToMillis(dueIso)?.let { it < System.currentTimeMillis() } == true && !isCompleted
+                            Surface(
+                                color = if (isOverdue) Color(0xFFFFECEB) else CardSurface,
+                                shape = RoundedCornerShape(4.dp),
+                            ) {
+                                Text(
+                                    "⏰ $formattedDate",
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = if (isOverdue) AccentRed else BrandBlue,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                    }
                     if (item.task.priority != "normal") {
                         Surface(color = if (item.task.priority == "urgent") Color(0xFFFFECEB) else Color(0xFFFFF7E6), shape = RoundedCornerShape(4.dp)) {
                             Text(item.task.priority.uppercase(), fontSize = 8.sp, fontFamily = FontFamily.Monospace, color = if (item.task.priority == "urgent") AccentRed else AmberWarn, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
@@ -1062,18 +1114,114 @@ private fun TaskItemCard(
 }
 
 // -------------------------------------------------------------
+// DUE DATE & REMINDER PICKER ROW
+// -------------------------------------------------------------
+@Composable
+private fun DueDatePickerRow(
+    dueAt: String?,
+    onDueAtChange: (String?) -> Unit,
+) {
+    val context = LocalContext.current
+    val isNone = dueAt == null
+
+    val today6pm = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 18)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+    }
+    val isToday6pm = dueAt?.let { ReminderManager.parseIsoToMillis(it) == today6pm } == true
+
+    val tomorrow9am = remember {
+        Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, 9)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val isTomorrow9am = dueAt?.let { ReminderManager.parseIsoToMillis(it) == tomorrow9am } == true
+    val isCustom = !isNone && !isToday6pm && !isTomorrow9am
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Reminder / Due Date", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Surface(
+                color = if (isNone) BrandBlue else CardSurface,
+                shape = RoundedCornerShape(6.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                modifier = Modifier.clickable { onDueAtChange(null) },
+            ) {
+                Text("None", color = if (isNone) Color.White else Ink, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            }
+            Surface(
+                color = if (isToday6pm) BrandBlue else CardSurface,
+                shape = RoundedCornerShape(6.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                modifier = Modifier.clickable { onDueAtChange(ReminderManager.formatMillisToIso(today6pm)) },
+            ) {
+                Text("Today 6 PM", color = if (isToday6pm) Color.White else Ink, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            }
+            Surface(
+                color = if (isTomorrow9am) BrandBlue else CardSurface,
+                shape = RoundedCornerShape(6.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                modifier = Modifier.clickable { onDueAtChange(ReminderManager.formatMillisToIso(tomorrow9am)) },
+            ) {
+                Text("Tomorrow 9 AM", color = if (isTomorrow9am) Color.White else Ink, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            }
+            Surface(
+                color = if (isCustom) BrandBlue else CardSurface,
+                shape = RoundedCornerShape(6.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                modifier = Modifier.clickable {
+                    val c = Calendar.getInstance()
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            val timeCal = Calendar.getInstance()
+                            TimePickerDialog(
+                                context,
+                                { _, hourOfDay, minute ->
+                                    c.set(year, month, dayOfMonth, hourOfDay, minute, 0)
+                                    onDueAtChange(ReminderManager.formatMillisToIso(c.timeInMillis))
+                                },
+                                timeCal.get(Calendar.HOUR_OF_DAY),
+                                timeCal.get(Calendar.MINUTE),
+                                false,
+                            ).show()
+                        },
+                        c.get(Calendar.YEAR),
+                        c.get(Calendar.MONTH),
+                        c.get(Calendar.DAY_OF_MONTH),
+                    ).show()
+                },
+            ) {
+                val label = if (isCustom) ReminderManager.formatDisplayDate(dueAt) ?: "Custom" else "Custom…"
+                Text(label, color = if (isCustom) Color.White else Ink, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
 // CREATE TASK DIALOG
 // -------------------------------------------------------------
 @Composable
 private fun CreateTaskDialog(
     spaces: List<SpaceEntity>,
     onDismiss: () -> Unit,
-    onCreate: (title: String, desc: String?, spaceId: String?, priority: String, isFocus: Boolean) -> Unit,
+    onCreate: (title: String, desc: String?, spaceId: String?, priority: String, dueAt: String?, isFocus: Boolean) -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var selectedSpaceId by remember { mutableStateOf(spaces.firstOrNull()?.id) }
     var priority by remember { mutableStateOf("normal") }
+    var dueAt by remember { mutableStateOf<String?>(null) }
     var isFocusToday by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -1111,6 +1259,26 @@ private fun CreateTaskDialog(
                         }
                     }
                 }
+                Text("Priority", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("normal", "high", "urgent").forEach { p ->
+                        val isSelected = priority == p
+                        Surface(
+                            color = if (isSelected) (if (p == "urgent") AccentRed else BrandBlue) else CardSurface,
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                            modifier = Modifier.clickable { priority = p },
+                        ) {
+                            Text(
+                                p.uppercase(),
+                                color = if (isSelected) Color.White else Ink,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+                DueDatePickerRow(dueAt = dueAt, onDueAtChange = { dueAt = it })
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isFocusToday, onCheckedChange = { isFocusToday = it }, colors = CheckboxDefaults.colors(checkedColor = BrandBlue))
                     Text("Add to Today's Top 3 Focus", fontSize = 12.sp, color = Ink)
@@ -1120,7 +1288,7 @@ private fun CreateTaskDialog(
         confirmButton = {
             Button(
                 enabled = title.isNotBlank(),
-                onClick = { onCreate(title, description, selectedSpaceId, priority, isFocusToday) },
+                onClick = { onCreate(title, description, selectedSpaceId, priority, dueAt, isFocusToday) },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
             ) { Text("Create Task") }
         },
@@ -1138,7 +1306,7 @@ private fun EditTaskDialog(
     taskWithSpace: TaskWithSpace,
     spaces: List<SpaceEntity>,
     onDismiss: () -> Unit,
-    onSave: (title: String, desc: String?, spaceId: String?, priority: String, isFocus: Boolean) -> Unit,
+    onSave: (title: String, desc: String?, spaceId: String?, priority: String, dueAt: String?, isFocus: Boolean) -> Unit,
     onDelete: () -> Unit,
 ) {
     val task = taskWithSpace.task
@@ -1146,6 +1314,7 @@ private fun EditTaskDialog(
     var description by remember { mutableStateOf(task.description.orEmpty()) }
     var selectedSpaceId by remember { mutableStateOf(task.spaceId) }
     var priority by remember { mutableStateOf(task.priority) }
+    var dueAt by remember { mutableStateOf(task.dueAt) }
     var isFocusToday by remember { mutableStateOf(task.isFocusToday == 1) }
 
     AlertDialog(
@@ -1207,6 +1376,7 @@ private fun EditTaskDialog(
                         }
                     }
                 }
+                DueDatePickerRow(dueAt = dueAt, onDueAtChange = { dueAt = it })
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = isFocusToday,
@@ -1220,7 +1390,7 @@ private fun EditTaskDialog(
         confirmButton = {
             Button(
                 enabled = title.isNotBlank(),
-                onClick = { onSave(title, description, selectedSpaceId, priority, isFocusToday) },
+                onClick = { onSave(title, description, selectedSpaceId, priority, dueAt, isFocusToday) },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
             ) { Text("Save Changes") }
         },
