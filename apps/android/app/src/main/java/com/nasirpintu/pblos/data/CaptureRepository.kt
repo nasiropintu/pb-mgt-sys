@@ -152,6 +152,35 @@ class CaptureRepository private constructor(private val context: Context, privat
         id
     }
 
+    suspend fun updateTaskDetails(
+        id: String,
+        title: String,
+        description: String? = null,
+        spaceId: String? = null,
+        priority: String = "normal",
+        isFocusToday: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val cleanTitle = title.trim()
+        require(cleanTitle.isNotEmpty()) { "Please enter a task title." }
+        val now = isoUtcNow()
+        dao.findTaskById(id)?.let { existing ->
+            dao.updateTask(
+                existing.copy(
+                    title = cleanTitle,
+                    description = description?.trim()?.takeIf { it.isNotBlank() },
+                    spaceId = spaceId?.takeIf { it.isNotBlank() },
+                    priority = priority,
+                    isFocusToday = if (isFocusToday) 1 else 0,
+                    updatedAt = now,
+                )
+            )
+        }
+    }
+
+    suspend fun deleteTask(id: String) = withContext(Dispatchers.IO) {
+        dao.softDeleteTask(id, isoUtcNow())
+    }
+
     suspend fun toggleTaskCompletion(id: String, isCurrentlyCompleted: Boolean) = withContext(Dispatchers.IO) {
         val now = isoUtcNow()
         val newStatus = if (isCurrentlyCompleted) "approved" else "completed"

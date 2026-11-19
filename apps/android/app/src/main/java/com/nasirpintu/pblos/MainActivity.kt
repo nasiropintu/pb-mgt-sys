@@ -169,6 +169,7 @@ private fun DailyOrganizerApp() {
     var currentTab by remember { mutableStateOf(AppNavTab.TODAY) }
     var showAbout by remember { mutableStateOf(false) }
     var showCreateTask by remember { mutableStateOf(false) }
+    var editingTask by remember { mutableStateOf<TaskWithSpace?>(null) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedSpaceFilter by remember { mutableStateOf<String?>(null) }
@@ -349,6 +350,7 @@ private fun DailyOrganizerApp() {
                             tasks = tasks.filter { it.task.title.contains(searchQuery, ignoreCase = true) || (it.task.description?.contains(searchQuery, ignoreCase = true) == true) },
                             inbox = inbox.filter { it.item.rawContent?.contains(searchQuery, ignoreCase = true) == true },
                             onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
+                            onEditTask = { editingTask = it },
                             fileFor = repository::fileFor,
                         )
                     } else {
@@ -360,6 +362,7 @@ private fun DailyOrganizerApp() {
                                 onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
                                 onRemoveFocus = { id -> scope.launch { repository.toggleTaskFocus(id, true) } },
                                 onAddFocus = { id -> scope.launch { repository.toggleTaskFocus(id, false) } },
+                                onEditTask = { editingTask = it },
                                 onJumpToInbox = { currentTab = AppNavTab.INBOX },
                                 onCreateTask = { showCreateTask = true },
                             )
@@ -416,6 +419,7 @@ private fun DailyOrganizerApp() {
                                 onSelectSpaceFilter = { selectedSpaceFilter = it },
                                 onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
                                 onToggleFocus = { id, isFocused -> scope.launch { repository.toggleTaskFocus(id, isFocused) } },
+                                onEditTask = { editingTask = it },
                                 onCreateTask = { showCreateTask = true },
                             )
                             AppNavTab.SPACES -> SpacesView(
@@ -492,6 +496,33 @@ private fun DailyOrganizerApp() {
             )
         }
 
+        editingTask?.let { taskWithSpace ->
+            EditTaskDialog(
+                taskWithSpace = taskWithSpace,
+                spaces = spaces,
+                onDismiss = { editingTask = null },
+                onSave = { title, desc, spaceId, priority, isFocus ->
+                    scope.launch {
+                        repository.updateTaskDetails(
+                            id = taskWithSpace.task.id,
+                            title = title,
+                            description = desc,
+                            spaceId = spaceId,
+                            priority = priority,
+                            isFocusToday = isFocus,
+                        )
+                        editingTask = null
+                    }
+                },
+                onDelete = {
+                    scope.launch {
+                        repository.deleteTask(taskWithSpace.task.id)
+                        editingTask = null
+                    }
+                },
+            )
+        }
+
         if (showAbout) AboutCreditsDialog(onClose = { showAbout = false }, openLink = uriHandler::openUri)
     }
 }
@@ -507,6 +538,7 @@ private fun TodayView(
     onToggleTask: (String, Boolean) -> Unit,
     onRemoveFocus: (String) -> Unit,
     onAddFocus: (String) -> Unit,
+    onEditTask: (TaskWithSpace) -> Unit = {},
     onJumpToInbox: () -> Unit,
     onCreateTask: () -> Unit,
 ) {
@@ -561,7 +593,7 @@ private fun TodayView(
                                     onCheckedChange = { onToggleTask(item.task.id, item.task.status == "completed") },
                                     colors = CheckboxDefaults.colors(checkedColor = BrandBlue),
                                 )
-                                Column(modifier = Modifier.weight(1f)) {
+                                Column(modifier = Modifier.weight(1f).clickable { onEditTask(item) }) {
                                     Text(
                                         item.task.title,
                                         fontSize = 13.sp,
@@ -645,6 +677,7 @@ private fun TodayView(
                         if (item.task.isFocusToday == 1) onRemoveFocus(item.task.id)
                         else onAddFocus(item.task.id)
                     },
+                    onClick = { onEditTask(item) },
                 )
             }
         }
@@ -813,6 +846,7 @@ private fun TasksView(
     onToggleTask: (String, Boolean) -> Unit,
     onToggleFocus: (String, Boolean) -> Unit,
     onCreateTask: () -> Unit,
+    onEditTask: (TaskWithSpace) -> Unit = {},
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -865,6 +899,7 @@ private fun TasksView(
                     item = item,
                     onToggleCompletion = { onToggleTask(item.task.id, item.task.status == "completed") },
                     onToggleFocus = { onToggleFocus(item.task.id, item.task.isFocusToday == 1) },
+                    onClick = { onEditTask(item) },
                 )
             }
         }
@@ -928,6 +963,7 @@ private fun SearchView(
     tasks: List<TaskWithSpace>,
     inbox: List<InboxWithAttachments>,
     onToggleTask: (String, Boolean) -> Unit,
+    onEditTask: (TaskWithSpace) -> Unit = {},
     fileFor: (AttachmentEntity) -> File?,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -944,6 +980,7 @@ private fun SearchView(
                     item = item,
                     onToggleCompletion = { onToggleTask(item.task.id, item.task.status == "completed") },
                     onToggleFocus = {},
+                    onClick = { onEditTask(item) },
                 )
             }
         }
@@ -973,6 +1010,7 @@ private fun TaskItemCard(
     item: TaskWithSpace,
     onToggleCompletion: () -> Unit,
     onToggleFocus: () -> Unit,
+    onClick: () -> Unit = {},
 ) {
     val isCompleted = item.task.status == "completed"
     val isFocused = item.task.isFocusToday == 1
@@ -981,7 +1019,7 @@ private fun TaskItemCard(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = androidx.compose.foundation.BorderStroke(1.dp, if (isFocused) BrandBlue.copy(alpha = 0.5f) else Border),
         shape = RoundedCornerShape(10.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(10.dp),
@@ -1088,6 +1126,113 @@ private fun CreateTaskDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = Muted) }
+        },
+    )
+}
+
+// -------------------------------------------------------------
+// EDIT TASK DIALOG
+// -------------------------------------------------------------
+@Composable
+private fun EditTaskDialog(
+    taskWithSpace: TaskWithSpace,
+    spaces: List<SpaceEntity>,
+    onDismiss: () -> Unit,
+    onSave: (title: String, desc: String?, spaceId: String?, priority: String, isFocus: Boolean) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val task = taskWithSpace.task
+    var title by remember { mutableStateOf(task.title) }
+    var description by remember { mutableStateOf(task.description.orEmpty()) }
+    var selectedSpaceId by remember { mutableStateOf(task.spaceId) }
+    var priority by remember { mutableStateOf(task.priority) }
+    var isFocusToday by remember { mutableStateOf(task.isFocusToday == 1) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = { Text("Edit Task", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Navy) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    placeholder = { Text("Task title…", fontSize = 13.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    placeholder = { Text("Optional details or notes…", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    shape = RoundedCornerShape(8.dp),
+                )
+                Text("Select Space", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    spaces.forEach { space ->
+                        val isSelected = selectedSpaceId == space.id
+                        Surface(
+                            color = if (isSelected) BrandBlue else CardSurface,
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                            modifier = Modifier.clickable { selectedSpaceId = space.id },
+                        ) {
+                            Text(
+                                space.name,
+                                color = if (isSelected) Color.White else Ink,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+                Text("Priority", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("normal", "high", "urgent").forEach { p ->
+                        val isSelected = priority == p
+                        Surface(
+                            color = if (isSelected) (if (p == "urgent") AccentRed else BrandBlue) else CardSurface,
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+                            modifier = Modifier.clickable { priority = p },
+                        ) {
+                            Text(
+                                p.uppercase(),
+                                color = if (isSelected) Color.White else Ink,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = isFocusToday,
+                        onCheckedChange = { isFocusToday = it },
+                        colors = CheckboxDefaults.colors(checkedColor = BrandBlue),
+                    )
+                    Text("Add to Today's Top 3 Focus", fontSize = 12.sp, color = Ink)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = title.isNotBlank(),
+                onClick = { onSave(title, description, selectedSpaceId, priority, isFocusToday) },
+                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+            ) { Text("Save Changes") }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = onDelete) {
+                    Text("Delete", color = AccentRed)
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = Muted)
+                }
+            }
         },
     )
 }

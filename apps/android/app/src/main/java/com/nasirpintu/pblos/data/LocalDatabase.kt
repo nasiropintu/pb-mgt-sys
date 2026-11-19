@@ -200,6 +200,12 @@ interface CaptureDao {
     @Update
     suspend fun updateTask(task: TaskEntity)
 
+    @Query("SELECT * FROM tasks WHERE id = :id LIMIT 1")
+    suspend fun findTaskById(id: String): TaskEntity?
+
+    @Query("UPDATE tasks SET is_deleted = 1, updated_at = :updatedAt WHERE id = :id")
+    suspend fun softDeleteTask(id: String, updatedAt: String)
+
     @Transaction
     @Query("SELECT * FROM tasks WHERE is_deleted = 0 ORDER BY is_focus_today DESC, CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END ASC, created_at DESC")
     fun observeTasks(): Flow<List<TaskWithSpace>>

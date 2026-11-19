@@ -7,6 +7,8 @@
 - Added cryptographic SHA-256 payload integrity check to verify backup authenticity before database restoration.
 - Integrated Android Storage Access Framework (SAF) document pickers for exporting `.bin` / `.pblos` backup files and restoring from device storage.
 - Added full database serialization and transactional restore across devices, spaces, tasks, inbox notes, and attachments.
+- Added interactive task detail & editing dialog (`EditTaskDialog`): tap any task across Today, Tasks, or Search to modify title, description, space assignment, priority (Normal/High/Urgent), Top 3 Focus promotion, or delete.
+- Added `updateTaskDetails` and soft `deleteTask` methods to `CaptureRepository` and `CaptureDao`.
 - Resolved Jetpack Compose `AlertDialog` imports, updated Gradle packaging configuration, and streamlined Room database singleton management.
 
 ## Unreleased — v0.1 foundation
