@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import com.nasirpintu.pblos.ui.SettingsView
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -136,11 +137,7 @@ enum class AppNavTab(val label: String, val icon: String) {
     INBOX("Inbox", "📥"),
     TASKS("Tasks", "✓"),
     SPACES("Spaces", "📁"),
-    SETTINGS("Settings", "⚙️"),
-    TODAY("Today", "☀️"),
-    INBOX("Inbox", "📥"),
-    TASKS("Tasks", "✓"),
-    SPACES("Spaces", "📁"),
+    SETTINGS("Settings", "⚙️")
 }
 
 class MainActivity : ComponentActivity() {
@@ -368,86 +365,12 @@ private fun DailyOrganizerApp() {
                                 },
                             )
                             AppNavTab.SETTINGS -> SettingsView(
-                                onExport = { passphrase ->
+                                onExport = { passphrase: String ->
                                     // TODO: invoke BackupManager.exportEncryptedBackup(passphrase)
                                 },
-                                onImport = { passphrase ->
+                                onImport = { passphrase: String ->
                                     // TODO: invoke BackupManager.importEncryptedBackup(file, passphrase)
                                 }
-                            )
-
-                            AppNavTab.TODAY -> TodayView(
-                                focusTasks = focusTasks,
-                                pendingTasks = pendingTasks,
-                                latestCapture = latestCapture,
-                                onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
-                                onRemoveFocus = { id -> scope.launch { repository.toggleTaskFocus(id, true) } },
-                                onAddFocus = { id -> scope.launch { repository.toggleTaskFocus(id, false) } },
-                                onJumpToInbox = { currentTab = AppNavTab.INBOX },
-                                onCreateTask = { showCreateTask = true },
-                            )
-                            AppNavTab.INBOX -> InboxView(
-                                isReady = isReady,
-                                isBusy = isBusy,
-                                captureError = captureError,
-                                textDraft = textDraft,
-                                onTextDraftChange = { textDraft = it },
-                                onSaveText = {
-                                    scope.launch {
-                                        try {
-                                            isBusy = true
-                                            captureError = null
-                                            repository.saveText(textDraft)
-                                            textDraft = ""
-                                        } catch (e: Exception) {
-                                            captureError = e.message ?: "Could not save."
-                                        } finally {
-                                            isBusy = false
-                                        }
-                                    }
-                                },
-                                activeRecording = activeRecording,
-                                elapsedSeconds = elapsedSeconds,
-                                onStartVoice = {
-                                    captureError = null
-                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                        scope.launch { startVoice() }
-                                    } else {
-                                        pendingMicrophoneRequest = true
-                                        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                                    }
-                                },
-                                onStopVoice = {
-                                    val id = activeRecording
-                                    if (id != null) {
-                                        scope.launch {
-                                            isBusy = true
-                                            runCatching { repository.stopVoiceCapture(id) }
-                                                .onFailure { captureError = it.message ?: "Could not finish recording." }
-                                            activeRecording = null
-                                            isBusy = false
-                                        }
-                                    }
-                                },
-                                inbox = inbox,
-                                fileFor = repository::fileFor,
-                            )
-                            AppNavTab.TASKS -> TasksView(
-                                tasks = if (selectedSpaceFilter == null) tasks else tasks.filter { it.task.spaceId == selectedSpaceFilter },
-                                spaces = spaces,
-                                selectedSpaceFilter = selectedSpaceFilter,
-                                onSelectSpaceFilter = { selectedSpaceFilter = it },
-                                onToggleTask = { id, done -> scope.launch { repository.toggleTaskCompletion(id, done) } },
-                                onToggleFocus = { id, isFocused -> scope.launch { repository.toggleTaskFocus(id, isFocused) } },
-                                onCreateTask = { showCreateTask = true },
-                            )
-                            AppNavTab.SPACES -> SpacesView(
-                                spaces = spaces,
-                                tasks = tasks,
-                                onSelectSpace = { spaceId ->
-                                    selectedSpaceFilter = spaceId
-                                    currentTab = AppNavTab.TASKS
-                                },
                             )
                         }
                     }

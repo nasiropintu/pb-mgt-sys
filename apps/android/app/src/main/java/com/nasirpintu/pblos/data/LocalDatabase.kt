@@ -12,6 +12,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Relation
+import android.content.Context
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Update
@@ -231,6 +233,31 @@ interface CaptureDao {
     @Transaction
     @Query("SELECT * FROM inbox_items WHERE is_deleted = 0 AND raw_content LIKE '%' || :query || '%' ORDER BY captured_at DESC")
     fun searchInbox(query: String): Flow<List<InboxWithAttachments>>
+
+    // Synchronous queries for backup & restore
+    @Query("SELECT * FROM devices")
+    fun getAllDevicesSync(): List<DeviceEntity>
+
+    @Query("SELECT * FROM spaces")
+    fun getAllSpacesSync(): List<SpaceEntity>
+
+    @Query("SELECT * FROM tasks")
+    fun getAllTasksSync(): List<TaskEntity>
+
+    @Query("SELECT * FROM inbox_items")
+    fun getAllInboxSync(): List<InboxItemEntity>
+
+    @Query("DELETE FROM devices")
+    fun clearAllDevices()
+
+    @Query("DELETE FROM spaces")
+    fun clearAllSpaces()
+
+    @Query("DELETE FROM tasks")
+    fun clearAllTasks()
+
+    @Query("DELETE FROM inbox_items")
+    fun clearAllInbox()
 }
 
 @Database(
@@ -247,4 +274,23 @@ interface CaptureDao {
 )
 abstract class LocalDatabase : RoomDatabase() {
     abstract fun captureDao(): CaptureDao
+
+    companion object {
+        private const val DATABASE_NAME = "pblos-local.db"
+        @Volatile private var INSTANCE: LocalDatabase? = null
+
+        fun getInstance(context: Context): LocalDatabase {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    LocalDatabase::class.java,
+                    DATABASE_NAME
+                )
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build()
+                    .also { INSTANCE = it }
+            }
+        }
+    }
 }
+
